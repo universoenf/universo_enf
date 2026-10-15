@@ -1,7 +1,7 @@
 /* Universo ENF: modalidades de compra, preços de lançamento */
 (()=>{
 const catalog=[
-["Sistema Esquelético",54],["Sistema Articular",12],["Sistema Tegumentar",18],["Sistema Urinário",18],["Sistema Endócrino",28],["Sistema Respiratório",34],["Sistema Linfático",32],["Sistema Cardiovascular",24],["Sistema Digestivo",42],["Farmacologia",250],["Urgência e Emergência",62],["Dispositivos",32],["Escalas",26],["Semiologia",10],["Semiotécnica",50],["Relatórios",45],["Feridas e Curativos",20],["Exames Laboratoriais",13],["Enfermagem Cirúrgica",122],["Saúde da Criança",32],["Saúde da Mulher",22],["Saúde do Adolescente",2],["Saúde do Homem",4],["Saúde do Idoso",8],["Comorbidades",2]];
+["Sistema Esquelético",54],["Sistema Articular",12],["Sistema Tegumentar",18],["Sistema Urinário",18],["Sistema Endócrino",28],["Sistema Respiratório",34],["Sistema Linfático",32],["Sistema Cardiovascular",24],["Sistema Digestivo",42],["Farmacologia",250],["Urgência e Emergência",62],["Dispositivos",32],["Escalas",26],["Semiologia",9],["Semiotécnica",50],["Relatórios",45],["Feridas e Curativos",20],["Exames Laboratoriais",13],["Enfermagem Cirúrgica",122],["Saúde da Criança",32],["Saúde da Mulher",22],["Saúde do Adolescente",2],["Saúde do Homem",4],["Saúde do Idoso",8],["Comorbidades",2]];
 const packs=[["Kit Mini",10,30],["Kit Básico",20,55],["Kit Essencial",30,75],["Kit por Matéria",40,90],["Kit Premium",50,140],["Kit Completo Plus",100,250]];
 const money=n=>"R$ "+n.toFixed(2).replace(".",",");
 let mode="avulso",choice=0,qty=1,first=false,pack=0;
