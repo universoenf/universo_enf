@@ -72,7 +72,21 @@
     .hide{display:none!important}
     button:disabled{opacity:.6;cursor:wait}
     h2{margin-top:0}
-        [hidden] { display: none !important; }
+    
+    .status-tag{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;border:1px solid transparent}
+    .tag-yellow{background:#fff4d6;color:#825800;border-color:#f6df99}
+    .tag-blue{background:#e1f0ff;color:#155b96;border-color:#b6daf9}
+    .tag-purple{background:#f1e4ff;color:#6c35a3;border-color:#dfc5f8}
+    .tag-green{background:#e0f6e8;color:#216b3e;border-color:#b6e8c6}
+    .tag-red{background:#ffe4e7;color:#a82f45;border-color:#f7bdc6}
+    .status-line{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+    .status-select{font-weight:700;border-width:2px}
+    .status-select.tag-yellow{background:#fff8e9;color:#825800;border-color:#efda9e}
+    .status-select.tag-blue{background:#edf6ff;color:#155b96;border-color:#b6daf9}
+    .status-select.tag-purple{background:#f7edff;color:#6c35a3;border-color:#dfc5f8}
+    .status-select.tag-green{background:#ecfbf0;color:#216b3e;border-color:#b6e8c6}
+    .status-select.tag-red{background:#fff0f1;color:#a82f45;border-color:#f7bdc6}
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
@@ -243,6 +257,10 @@
     const fmtDate = d => d ? new Date(d+"T12:00:00").toLocaleDateString("pt-BR") : "Não definida";
     function elt(tag, text, cls) { const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e; }
     function notice(t){$("ordersNotice").textContent=t;}
+    const statusColor={"Pendente":"yellow","Em produção":"blue","Pronto":"purple","Entregue":"green","Cancelado":"red","Aguardando":"yellow","Parcial":"blue","Pago":"green","Reembolsado":"red"};
+    const statusEmoji={"Pendente":"🟡","Em produção":"🔵","Pronto":"🟣","Entregue":"🟢","Cancelado":"🔴","Aguardando":"🟡","Parcial":"🔵","Pago":"🟢","Reembolsado":"🔴"};
+    function statusBadge(value,prefix=""){const b=elt("span",statusEmoji[value]+" "+prefix+value,"status-tag tag-"+(statusColor[value]||"purple"));return b;}
+    function colorSelect(select,value){select.className="status-select tag-"+(statusColor[value]||"purple");}
     function renderOrders(){
       const stats=$("orderStats");stats.replaceChildren();
       [["Todos",orders.length],...statuses.map(x=>[x,orders.filter(o=>o.status===x).length])].forEach(([label,count])=>{
@@ -255,16 +273,17 @@
       shown.forEach(o=>{
         const card=elt("article",undefined,"order"),head=elt("div",undefined,"orderhead");
         const title=elt("strong","#ENF-"+String(o.id).padStart(4,"0")+" · "+o.customer_name);
-        head.append(title,elt("span",o.status,"pill"));card.append(head);
+        head.append(title,statusBadge(o.status));card.append(head);
+        const tags=elt("div",undefined,"status-line");tags.append(statusBadge(o.status,"Andamento: "),statusBadge(o.payment_status,"Pagamento: "));card.append(tags);
         card.append(elt("p",o.items),elt("p",o.quantity+" card(s) · "+money(o.total_amount)+" · Pagamento: "+o.payment_status,"muted"));
         card.append(elt("p","Previsão: "+fmtDate(o.due_date)+(o.customer_phone?" · WhatsApp: "+o.customer_phone:""),"muted"));
         if(o.notes)card.append(elt("p","Observações: "+o.notes,"muted"));
         const controls=elt("div",undefined,"ordercontrols");
         const st=elt("label","Andamento"),stSel=elt("select");statuses.forEach(x=>{const op=elt("option",x);op.value=x;op.selected=x===o.status;stSel.append(op)});
-        stSel.onchange=()=>patchOrder(o.id,{status:stSel.value},stSel);st.append(stSel);
+        colorSelect(stSel,o.status);stSel.onchange=()=>patchOrder(o.id,{status:stSel.value},stSel);st.append(stSel);
         const pay=elt("label","Pagamento"),paySel=elt("select");
         ["Aguardando","Parcial","Pago","Reembolsado"].forEach(x=>{const op=elt("option",x);op.value=x;op.selected=x===o.payment_status;paySel.append(op)});
-        paySel.onchange=()=>patchOrder(o.id,{payment_status:paySel.value},paySel);pay.append(paySel);
+        colorSelect(paySel,o.payment_status);paySel.onchange=()=>patchOrder(o.id,{payment_status:paySel.value},paySel);pay.append(paySel);
         const edit=elt("button","Editar","secondary");edit.type="button";edit.onclick=()=>openForm(o);
         controls.append(st,pay,edit);card.append(controls);list.append(card);
       });
@@ -283,6 +302,7 @@
     function openForm(order=null){
       editingId=order?.id||null;$("orderForm").reset();$("formTitle").textContent=order?"Editar pedido #ENF-"+String(order.id).padStart(4,"0"):"Cadastrar pedido";
       if(order){for(const key of ["customer_name","customer_phone","quantity","total_amount","status","payment_status","due_date","items","notes"]){const input=$("orderForm").elements.namedItem(key);if(input)input.value=order[key]??"";}}
+      ["status","payment_status"].forEach(k=>{const sel=$("orderForm").elements.namedItem(k);colorSelect(sel,sel.value);sel.onchange=()=>colorSelect(sel,sel.value)});
       $("orderFormWrap").hidden=false;$("orderFormWrap").scrollIntoView({behavior:"smooth",block:"start"});
     }
     $("newOrder").onclick=()=>openForm();
