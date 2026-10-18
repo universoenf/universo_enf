@@ -76,7 +76,7 @@
     .quick-nav{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 16px}
     .quick-nav a{display:inline-flex;align-items:center;justify-content:center;flex:1 1 150px;padding:13px 16px;border-radius:12px;background:#f1e9fc;color:#60418f;text-decoration:none;font-weight:700;border:1px solid #e6d5f7}
     .quick-nav a:hover,.quick-nav a:focus-visible{background:#e8d8fc;outline:2px solid #7550b6;outline-offset:2px}
-    #financeModule,#stockModule,#ordersModule{scroll-margin-top:18px}
+    #financeModule,#ordersModule{scroll-margin-top:18px}
     
     .status-tag{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;border:1px solid transparent}
     .tag-yellow{background:#fff4d6;color:#825800;border-color:#f6df99}
@@ -133,7 +133,6 @@
       <nav class="panel quick-nav" aria-label="Acesso rápido às categorias">
         <a href="#ordersModule">🛍️ Pedidos</a>
         <a href="#financeModule">💰 Financeiro</a>
-        <a href="#stockModule">📦 Estoque e Produção</a>
       </nav>
 
       <section class="panel" id="financeModule">
@@ -157,25 +156,6 @@
           <div class="toolbar" style="justify-content:flex-start;margin-top:12px"><button type="submit" id="saveExpense">Salvar despesa</button><button type="button" class="secondary" id="cancelExpense">Cancelar</button></div>
         </form>
         <div id="expensesList"></div>
-      </section>
-
-      <section class="panel" id="stockModule">
-        <div class="toolbar"><div><h2>📦 Estoque e Produção</h2><p class="muted">Controle manual dos cards físicos. Os pedidos do site não descontam o estoque automaticamente.</p></div><button id="newStock" type="button">+ Cadastrar produto</button></div>
-        <p id="stockNotice" class="feedback" role="status"></p>
-        <div class="stats" id="stockStats"></div>
-        <form id="stockForm" class="panel" hidden>
-          <h3 id="stockFormTitle">Cadastrar produto</h3>
-          <div class="fieldgrid">
-            <label>Nome do card ou kit *<input name="name" maxlength="180" required placeholder="Ex.: Sistema Respiratório"></label>
-            <label>Coleção *<input name="collection" maxlength="120" required placeholder="Ex.: Anatomia"></label>
-            <label>Quantidade disponível *<input name="quantity" type="number" min="0" max="1000000" step="1" required></label>
-            <label>Alerta de estoque baixo *<input name="min_quantity" type="number" min="0" max="1000000" step="1" required value="5"></label>
-            <label>Produção<select name="production_status"><option>Disponível</option><option>Em produção</option><option>Planejado</option><option>Pausado</option></select></label>
-          </div>
-          <div class="toolbar" style="justify-content:flex-start;margin-top:12px"><button id="saveStock" type="submit">Salvar</button><button id="cancelStock" type="button" class="secondary">Cancelar</button></div>
-        </form>
-        <label style="margin-top:12px">Buscar produto<input id="stockSearch" placeholder="Nome ou coleção"></label>
-        <div id="stockList"></div>
       </section>
 
       <section class="panel" id="ordersModule">
@@ -255,7 +235,6 @@
         show("dashboard");
         await loadOrders();
         await loadExpenses();
-        await loadStock();
       } catch {
         show("login");
         $("message").textContent = "Erro de conexão. Tente novamente.";
@@ -288,7 +267,7 @@
     $("deniedExit").onclick = logout;
 
 
-    let orders = [], editingId = null, expenses = [], expensesReady = false, stockItems = [], stockEditingId = null;
+    let orders = [], editingId = null, expenses = [], expensesReady = false;
     const statuses=["Pendente","Em produção","Pronto","Entregue","Cancelado"];
     const money = v => Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
     const fmtDate = d => d ? new Date(d+"T12:00:00").toLocaleDateString("pt-BR") : "Não definida";
@@ -330,58 +309,6 @@
       $("financeNote").textContent="Resultado estimado = recebimentos informados em pedidos criados neste mês menos despesas datadas neste mês. Não é lucro contábil nem fluxo de caixa por data de pagamento.";
       renderFinanceChart();
     }
-    async function loadStock(){
-      const {data,error}=await db.from("enf_stock").select("*").order("name",{ascending:true}).limit(1000);
-      if(error){$("stockNotice").textContent="Estoque aguardando configuração do banco de dados.";stockItems=[];$("stockList").replaceChildren();return;}
-      stockItems=data||[];$("stockNotice").textContent="";renderStock();
-    }
-    function renderStock(){
-      const stats=$("stockStats");stats.replaceChildren();
-      const low=stockItems.filter(x=>x.quantity<=x.min_quantity);
-      [["Produtos",stockItems.length],["Unidades disponíveis",stockItems.reduce((n,x)=>n+x.quantity,0)],["Estoque baixo ou zerado",low.length],["Em produção",stockItems.filter(x=>x.production_status==="Em produção").length]].forEach(([label,value])=>{
-        const el=elt("div",undefined,"stat");el.append(elt("span",label),elt("b",String(value)));stats.append(el);
-      });
-      const q=$("stockSearch").value.toLocaleLowerCase("pt-BR");
-      const list=$("stockList");list.replaceChildren();
-      const shown=stockItems.filter(x=>(x.name+" "+x.collection).toLocaleLowerCase("pt-BR").includes(q));
-      if(!shown.length){list.append(elt("p","Nenhum produto encontrado.","muted"));return;}
-      shown.forEach(item=>{
-        const card=elt("div",undefined,"order"),head=elt("div",undefined,"orderhead");
-        head.append(elt("strong",item.name),elt("strong",item.quantity+" unidade(s)"));
-        card.append(head,elt("p",item.collection+" · "+item.production_status+" · Alerta em "+item.min_quantity+" unidades","muted"));
-        if(item.quantity<=item.min_quantity)card.append(elt("span",item.quantity===0?"🔴 Estoque zerado":"🟡 Estoque baixo","status-tag "+(item.quantity===0?"tag-red":"tag-yellow")));
-        const controls=elt("div",undefined,"ordercontrols");
-        const edit=elt("button","Editar","secondary");edit.type="button";edit.onclick=()=>openStock(item);
-        const del=elt("button","Excluir","secondary");del.type="button";del.onclick=async()=>{
-          if(!confirm("Excluir o produto "+item.name+" do controle de estoque?"))return;
-          del.disabled=true;const {error}=await db.from("enf_stock").delete().eq("id",item.id);
-          if(error){$("stockNotice").textContent="Erro ao excluir: "+error.message;del.disabled=false;return;}
-          await loadStock();$("stockNotice").textContent="Produto excluído do estoque.";
-        };
-        controls.append(edit,del);card.append(controls);list.append(card);
-      });
-    }
-    function openStock(item=null){
-      stockEditingId=item?.id??null;
-      const form=$("stockForm");form.reset();
-      $("stockFormTitle").textContent=item?"Editar produto":"Cadastrar produto";
-      if(item)for(const k of ["name","collection","quantity","min_quantity","production_status"])form.elements.namedItem(k).value=item[k];
-      form.hidden=false;form.scrollIntoView({behavior:"smooth",block:"start"});
-    }
-    $("newStock").onclick=()=>openStock();
-    $("cancelStock").onclick=()=>{$("stockForm").hidden=true;stockEditingId=null;};
-    $("stockSearch").oninput=renderStock;
-    $("stockForm").onsubmit=async e=>{
-      e.preventDefault();const f=new FormData(e.currentTarget);
-      const payload={name:String(f.get("name")).trim(),collection:String(f.get("collection")).trim(),quantity:Number(f.get("quantity")),min_quantity:Number(f.get("min_quantity")),production_status:String(f.get("production_status"))};
-      if(!payload.name||!payload.collection||![payload.quantity,payload.min_quantity].every(n=>Number.isSafeInteger(n)&&n>=0&&n<=1000000)){$("stockNotice").textContent="Confira os dados do produto.";return;}
-      const btn=$("saveStock");btn.disabled=true;
-      const result=stockEditingId===null?await db.from("enf_stock").insert(payload):await db.from("enf_stock").update(payload).eq("id",stockEditingId);
-      btn.disabled=false;
-      if(result.error){$("stockNotice").textContent="Não foi possível salvar: "+result.error.message;return;}
-      $("stockForm").hidden=true;stockEditingId=null;
-      await loadStock();$("stockNotice").textContent="Estoque atualizado com sucesso!";
-    };
     async function loadExpenses(){
       const {data,error}=await db.from("enf_expenses").select("*").order("expense_date",{ascending:false}).limit(1000);
       expensesReady=!error;
