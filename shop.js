@@ -32,7 +32,9 @@ $("buywa").onclick=async()=>{
  const customerName=document.getElementById("name")?.value?.trim()||"Cliente pelo site";
  const customerPhone=document.getElementById("phone")?.value?.trim()||"";
  const items=[x.label,...lines].join("\n");
- try { if(typeof window.universoRegistrarPedido!=="function") throw new Error("Integração não carregada"); await window.universoRegistrarPedido({customer_name:customerName,customer_phone:customerPhone,items,quantity:x.count,total_amount:x.amount,notes:[note,mode==="kit"?"Kit: conteúdos a confirmar":""].filter(Boolean).join(" · ")}); } catch(e) { alert("Não foi possível registrar seu pedido no sistema. Tente atualizar a página ou entre em contato pelo WhatsApp."); return; }
+ try { if(typeof window.universoRegistrarPedido!=="function") throw new Error("Integração não carregada"); const orderId=await window.universoRegistrarPedido({customer_name:customerName,customer_phone:customerPhone,items,quantity:x.count,total_amount:x.amount,notes:[note,mode==="kit"?"Kit: conteúdos a confirmar":""].filter(Boolean).join(" · ")}); } catch(e) { alert("Não foi possível registrar seu pedido no sistema. Tente atualizar a página ou entre em contato pelo WhatsApp."); return; }
+ msg+="\n*Número do pedido:* #ENF-"+String(orderId).padStart(4,"0");
+ alert("Pedido #ENF-"+String(orderId).padStart(4,"0")+" registrado no painel! Vamos abrir o WhatsApp.");
  window.location.href="https://wa.me/5596991522760?text="+encodeURIComponent(msg);
 };
 render();
