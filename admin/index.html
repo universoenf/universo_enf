@@ -140,6 +140,9 @@
               <label>Situação do pedido<select name="status"><option>Pendente</option><option>Em produção</option><option>Pronto</option><option>Entregue</option><option>Cancelado</option></select></label>
               <label>Pagamento<select name="payment_status"><option>Aguardando</option><option>Parcial</option><option>Pago</option><option>Reembolsado</option></select></label>
               <label>Previsão de entrega<input name="due_date" type="date"></label>
+              <label>Forma de entrega<select name="delivery_method"><option value="">A definir</option><option>Retirada</option><option>Entrega local</option><option>Envio</option></select></label>
+              <label>Data efetiva da entrega<input name="delivered_at" type="date"></label>
+              <label>Código de rastreamento<input name="tracking_code" maxlength="120" placeholder="Opcional"></label>
             </div>
             <label style="margin-top:12px">Cards ou kit solicitado *<textarea name="items" maxlength="3000" required placeholder="Ex.: 30 cards de Anatomia"></textarea></label>
             <label style="margin-top:12px">Observações<textarea name="notes" maxlength="3000" placeholder="Personalização, retirada, envio..."></textarea></label>
@@ -149,6 +152,9 @@
         <div class="fieldgrid">
           <label>Filtrar por situação<select id="orderFilter"><option>Todos</option><option>Pendente</option><option>Em produção</option><option>Pronto</option><option>Entregue</option><option>Cancelado</option></select></label>
           <label>Buscar cliente ou pedido<input id="orderSearch" placeholder="Nome, código ou cards..."></label>
+          <label>Visualizar datas<select id="dateField"><option value="created_at">Data do pedido</option><option value="due_date">Previsão de entrega</option><option value="delivered_at">Data da entrega</option></select></label>
+          <label>Data inicial<input id="dateStart" type="date"></label>
+          <label>Data final<input id="dateEnd" type="date"></label>
         </div>
         <div id="ordersList" aria-live="polite"><p class="muted">Carregando pedidos...</p></div>
       </section>
@@ -261,13 +267,18 @@
     const statusEmoji={"Pendente":"🟡","Em produção":"🔵","Pronto":"🟣","Entregue":"🟢","Cancelado":"🔴","Aguardando":"🟡","Parcial":"🔵","Pago":"🟢","Reembolsado":"🔴"};
     function statusBadge(value,prefix=""){const b=elt("span",statusEmoji[value]+" "+prefix+value,"status-tag tag-"+(statusColor[value]||"purple"));return b;}
     function colorSelect(select,value){select.className="status-select tag-"+(statusColor[value]||"purple");}
+    const localDate=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
     function renderOrders(){
       const stats=$("orderStats");stats.replaceChildren();
       [["Todos",orders.length],...statuses.map(x=>[x,orders.filter(o=>o.status===x).length])].forEach(([label,count])=>{
         const card=elt("div",undefined,"stat");card.append(elt("span",label),elt("b",String(count)));stats.append(card);
       });
       const f=$("orderFilter").value,q=$("orderSearch").value.toLocaleLowerCase("pt-BR");
-      const shown=orders.filter(o=>(f==="Todos"||o.status===f)&&[o.customer_name,o.items,String(o.id)].some(x=>String(x||"").toLocaleLowerCase("pt-BR").includes(q)));
+      const dateField=$("dateField").value,from=$("dateStart").value,to=$("dateEnd").value;
+      const shown=orders.filter(o=>{
+        const date=String(o[dateField]||"").slice(0,10);
+        return (f==="Todos"||o.status===f)&&[o.customer_name,o.items,String(o.id)].some(x=>String(x||"").toLocaleLowerCase("pt-BR").includes(q))&&(!from||(date&&date>=from))&&(!to||(date&&date<=to));
+      });
       const list=$("ordersList");list.replaceChildren();
       if(!shown.length){list.append(elt("p",orders.length?"Nenhum pedido corresponde ao filtro.":"Nenhum pedido cadastrado ainda.","muted"));return;}
       shown.forEach(o=>{
@@ -276,7 +287,8 @@
         head.append(title,statusBadge(o.status));card.append(head);
         const tags=elt("div",undefined,"status-line");tags.append(statusBadge(o.status,"Andamento: "),statusBadge(o.payment_status,"Pagamento: "));card.append(tags);
         card.append(elt("p",o.items),elt("p",o.quantity+" card(s) · "+money(o.total_amount)+" · Pagamento: "+o.payment_status,"muted"));
-        card.append(elt("p","Previsão: "+fmtDate(o.due_date)+(o.customer_phone?" · WhatsApp: "+o.customer_phone:""),"muted"));
+        card.append(elt("p","Pedido: "+new Date(o.created_at).toLocaleDateString("pt-BR")+" · Previsão: "+fmtDate(o.due_date)+(o.delivered_at?" · Entregue: "+fmtDate(o.delivered_at):""),"muted"));
+        card.append(elt("p","Entrega: "+(o.delivery_method||"A definir")+(o.tracking_code?" · Rastreio: "+o.tracking_code:"")+(o.customer_phone?" · WhatsApp: "+o.customer_phone:""),"muted"));
         if(o.notes)card.append(elt("p","Observações: "+o.notes,"muted"));
         const controls=elt("div",undefined,"ordercontrols");
         const st=elt("label","Andamento"),stSel=elt("select");statuses.forEach(x=>{const op=elt("option",x);op.value=x;op.selected=x===o.status;stSel.append(op)});
@@ -294,14 +306,16 @@
       orders=data||[];renderOrders();
     }
     async function patchOrder(id,patch,control){
-      control.disabled=true;const {error}=await db.from("enf_orders").update(patch).eq("id",id);
+      control.disabled=true;
+      if(patch.status==="Entregue"){const previous=orders.find(x=>x.id===id);if(previous&&!previous.delivered_at)patch.delivered_at=localDate();}
+      const {error}=await db.from("enf_orders").update(patch).eq("id",id);
       control.disabled=false;
       if(error){notice("Não foi possível atualizar: "+error.message);await loadOrders();return;}
       const o=orders.find(x=>x.id===id);if(o)Object.assign(o,patch);notice("Pedido atualizado com sucesso.");renderOrders();
     }
     function openForm(order=null){
       editingId=order?.id||null;$("orderForm").reset();$("formTitle").textContent=order?"Editar pedido #ENF-"+String(order.id).padStart(4,"0"):"Cadastrar pedido";
-      if(order){for(const key of ["customer_name","customer_phone","quantity","total_amount","status","payment_status","due_date","items","notes"]){const input=$("orderForm").elements.namedItem(key);if(input)input.value=order[key]??"";}}
+      if(order){for(const key of ["customer_name","customer_phone","quantity","total_amount","status","payment_status","due_date","delivery_method","delivered_at","tracking_code","items","notes"]){const input=$("orderForm").elements.namedItem(key);if(input)input.value=order[key]??"";}}
       ["status","payment_status"].forEach(k=>{const sel=$("orderForm").elements.namedItem(k);colorSelect(sel,sel.value);sel.onchange=()=>colorSelect(sel,sel.value)});
       $("orderFormWrap").hidden=false;$("orderFormWrap").scrollIntoView({behavior:"smooth",block:"start"});
     }
@@ -309,10 +323,12 @@
     $("cancelOrder").onclick=()=>{$("orderFormWrap").hidden=true;editingId=null};
     $("orderFilter").onchange=renderOrders;
     $("orderSearch").oninput=renderOrders;
+    ["dateField","dateStart","dateEnd"].forEach(id=>$(id).onchange=renderOrders);
     $("orderForm").onsubmit=async e=>{
       e.preventDefault();const f=new FormData(e.currentTarget);
-      const payload={customer_name:String(f.get("customer_name")).trim(),customer_phone:String(f.get("customer_phone")).trim(),quantity:Number(f.get("quantity")),total_amount:Number(f.get("total_amount")),status:String(f.get("status")),payment_status:String(f.get("payment_status")),due_date:f.get("due_date")||null,items:String(f.get("items")).trim(),notes:String(f.get("notes")).trim()};
+      const payload={customer_name:String(f.get("customer_name")).trim(),customer_phone:String(f.get("customer_phone")).trim(),quantity:Number(f.get("quantity")),total_amount:Number(f.get("total_amount")),status:String(f.get("status")),payment_status:String(f.get("payment_status")),due_date:f.get("due_date")||null,delivery_method:String(f.get("delivery_method")||""),delivered_at:f.get("delivered_at")||null,tracking_code:String(f.get("tracking_code")||"").trim(),items:String(f.get("items")).trim(),notes:String(f.get("notes")).trim()};
       if(!payload.customer_name||!payload.items||!Number.isInteger(payload.quantity)||payload.quantity<1||!Number.isFinite(payload.total_amount)||payload.total_amount<0){notice("Confira os dados do pedido.");return;}
+      if(payload.status==="Entregue"&&!payload.delivered_at)payload.delivered_at=localDate();
       const btn=$("saveOrder");btn.disabled=true;
       const result=editingId?await db.from("enf_orders").update(payload).eq("id",editingId):await db.from("enf_orders").insert(payload);
       btn.disabled=false;
