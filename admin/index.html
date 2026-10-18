@@ -297,13 +297,23 @@
         ["Aguardando","Parcial","Pago","Reembolsado"].forEach(x=>{const op=elt("option",x);op.value=x;op.selected=x===o.payment_status;paySel.append(op)});
         colorSelect(paySel,o.payment_status);paySel.onchange=()=>patchOrder(o.id,{payment_status:paySel.value},paySel);pay.append(paySel);
         const edit=elt("button","Editar","secondary");edit.type="button";edit.onclick=()=>openForm(o);
-        controls.append(st,pay,edit);card.append(controls);list.append(card);
+        const del=elt("button","Excluir","secondary");del.type="button";del.style.cssText="color:#a82f45;border:1px solid #f0bac2";del.onclick=()=>deleteOrder(o);
+        controls.append(st,pay,edit,del);card.append(controls);list.append(card);
       });
     }
     async function loadOrders(){
       notice("");const {data,error}=await db.from("enf_orders").select("*").order("created_at",{ascending:false}).limit(500);
       if(error){$("ordersList").replaceChildren(elt("p","A base de pedidos ainda precisa ser ativada no Supabase. Execute o SQL de configuração para começar.","muted"));notice("Configuração do banco de pedidos pendente.");return;}
       orders=data||[];renderOrders();
+    }
+    async function deleteOrder(order){
+      const code="#ENF-"+String(order.id).padStart(4,"0");
+      if(!confirm("Excluir permanentemente o pedido "+code+" de "+order.customer_name+"?\n\nEsta ação não pode ser desfeita."))return;
+      const typed=prompt("Para confirmar, digite o número "+code+" exatamente:");
+      if(typed!==code){if(typed!==null)notice("Exclusão cancelada: número não confere.");return;}
+      const {error}=await db.from("enf_orders").delete().eq("id",order.id);
+      if(error){notice("Não foi possível excluir: "+error.message);return;}
+      await loadOrders();notice("Pedido "+code+" excluído com sucesso.");
     }
     async function patchOrder(id,patch,control){
       control.disabled=true;
