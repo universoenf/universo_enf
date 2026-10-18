@@ -48,14 +48,14 @@ collections.forEach(item=>{
  const art=document.createElement("div");
  if(item.image){
  const img=document.createElement("img");img.src=encodeURI(item.image);img.alt="Imagem ilustrativa da coleção "+item.title;img.loading="lazy";
- img.onerror=()=>{img.remove();const fallback=document.createElement("div");fallback.className="promo-placeholder";fallback.textContent=item.icon;art.append(fallback)};
+ img.onerror=()=>{img.remove();const fallback=document.createElement("div");fallback.className="promo-placeholder";fallback.textContent=item.icon;art.append(fallback);sub.textContent="IMAGEM EM PRODUÇÃO • Coleção em preparação";button.textContent="💜 Ver coleção em produção"};
  art.append(img);
  }else{
  const fallback=document.createElement("div");fallback.className="promo-placeholder";fallback.textContent=item.icon;art.append(fallback);
  }
  const name=document.createElement("strong");name.textContent=item.title;
- const sub=document.createElement("small");sub.textContent=item.coming?"Em produção • novidades em breve":"Conheça os cards disponíveis";
- const button=document.createElement("button");button.type="button";button.textContent=item.coming?"💜 Ver coleção em produção":"🛒 Ver cards da coleção";
+ const sub=document.createElement("small");sub.textContent=item.coming?"EM PRODUÇÃO • Novidades em breve":item.image?"Conheça os cards disponíveis":"IMAGEM EM PRODUÇÃO • Coleção em preparação";
+ const button=document.createElement("button");button.type="button";button.textContent=(item.coming||!item.image)?"💜 Ver coleção em produção":"🛒 Ver cards da coleção";
  button.onclick=()=>openCollection(item.category,item.group);
  card.append(art,name,sub,button);root.append(card);
 });
