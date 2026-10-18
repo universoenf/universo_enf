@@ -131,6 +131,18 @@
         <div class="stats" id="financeStats"></div>
         <p class="muted" id="financeNote">Os valores são estimativas conforme o status informado no painel. Pagamentos parciais não são contabilizados como recebidos até a confirmação integral.</p>
         <div id="financeBreakdown"></div>
+        <div class="toolbar" style="margin-top:20px"><h3 style="margin:0">🧾 Despesas do mês</h3><button type="button" id="addExpense">+ Nova despesa</button></div>
+        <p id="expenseNotice" class="feedback" role="status"></p>
+        <form id="expenseForm" class="panel" hidden>
+          <div class="fieldgrid">
+            <label>Descrição *<input name="description" maxlength="180" required placeholder="Ex.: Papel para impressão"></label>
+            <label>Categoria<select name="category"><option>Impressão</option><option>Papel</option><option>Plastificação</option><option>Embalagens</option><option>Transporte</option><option>Outros</option></select></label>
+            <label>Valor (R$) *<input name="amount" type="number" min="0.01" max="1000000" step="0.01" required></label>
+            <label>Data da despesa *<input name="expense_date" type="date" required></label>
+          </div>
+          <div class="toolbar" style="justify-content:flex-start;margin-top:12px"><button type="submit" id="saveExpense">Salvar despesa</button><button type="button" class="secondary" id="cancelExpense">Cancelar</button></div>
+        </form>
+        <div id="expensesList"></div>
       </section>
 
       <section class="panel" id="ordersModule">
@@ -234,6 +246,7 @@
 
         show("dashboard");
         await loadOrders();
+        await loadExpenses();
       } catch {
         show("login");
         $("message").textContent = "Erro de conexão. Tente novamente.";
@@ -266,7 +279,7 @@
     $("deniedExit").onclick = logout;
 
 
-    let orders = [], editingId = null;
+    let orders = [], editingId = null, expenses = [], expensesReady = false;
     const statuses=["Pendente","Em produção","Pronto","Entregue","Cancelado"];
     const money = v => Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
     const fmtDate = d => d ? new Date(d+"T12:00:00").toLocaleDateString("pt-BR") : "Não definida";
@@ -289,10 +302,13 @@
       const excluded=active.filter(o=>o.status==="Cancelado"||o.payment_status==="Reembolsado");
       const receivedTotal=valid.reduce((n,o)=>n+received(o),0);
       const balance=valid.reduce((n,o)=>n+Math.max(0,Number(o.total_amount||0)-received(o)),0);
+      const spent=expenses.filter(e=>String(e.expense_date||"").slice(0,7)===month).reduce((n,e)=>n+Number(e.amount||0),0);
       const cards=[
         ["Pedidos no mês",String(active.length)],
         ["Valor dos pedidos válidos",money(sum(valid))],
         ["Recebido informado",money(receivedTotal)],
+        ["Despesas do mês",money(spent)],
+        ["Resultado estimado",money(receivedTotal-spent)],
         ["Saldo a receber",money(balance)],
         ["Aguardando pagamento",money(sum(awaiting))],
         ["Recebido em pagamentos parciais",money(partial.reduce((n,o)=>n+received(o),0))],
@@ -304,6 +320,45 @@
       summary.append(elt("p","Pedidos pagos: "+paid.length+" · Aguardando: "+awaiting.length+" · Parciais: "+partial.length+" · Excluídos dos totais: "+excluded.length,"muted"));
       $("financeNote").textContent="Competência por data do pedido, não pela data do pagamento. Valores recebidos consideram apenas pedidos marcados como Pago e não cancelados. Pagamentos parciais sem valor preenchido são contabilizados como R$ 0 recebido até a informação do valor. O resumo não calcula lucro nem despesas.";
     }
+    async function loadExpenses(){
+      const {data,error}=await db.from("enf_expenses").select("*").order("expense_date",{ascending:false}).limit(1000);
+      expensesReady=!error;
+      if(error){$("expenseNotice").textContent="Para ativar despesas, execute o SQL de configuração no Supabase.";expenses=[];}
+      else {expenses=data||[];$("expenseNotice").textContent="";}
+      renderFinance();
+    }
+    function renderExpenses(){
+      const list=$("expensesList");list.replaceChildren();
+      if(!expensesReady){list.append(elt("p","Cadastro de despesas aguardando ativação no banco de dados.","muted"));return;}
+      const shown=expenses.filter(e=>String(e.expense_date||"").slice(0,7)===$("financeMonth").value);
+      if(!shown.length){list.append(elt("p","Nenhuma despesa cadastrada neste mês.","muted"));return;}
+      shown.forEach(e=>{
+        const card=elt("div",undefined,"order"),head=elt("div",undefined,"orderhead");
+        head.append(elt("strong",e.description),elt("strong",money(e.amount)));
+        card.append(head,elt("p",e.category+" · "+fmtDate(e.expense_date),"muted"));
+        const del=elt("button","Excluir despesa","secondary");del.type="button";del.style.marginTop="8px";
+        del.onclick=async()=>{
+          if(!confirm("Excluir a despesa "+e.description+" de "+money(e.amount)+"? Esta ação é permanente."))return;
+          del.disabled=true;
+          const {error}=await db.from("enf_expenses").delete().eq("id",e.id);
+          if(error){$("expenseNotice").textContent="Erro ao excluir: "+error.message;del.disabled=false;return;}
+          await loadExpenses();$("expenseNotice").textContent="Despesa excluída.";
+        };
+        card.append(del);list.append(card);
+      });
+    }
+    $("addExpense").onclick=()=>{$("expenseForm").reset();$("expenseForm").elements.namedItem("expense_date").value=localDate();$("expenseForm").hidden=false;};
+    $("cancelExpense").onclick=()=>{$("expenseForm").hidden=true;};
+    $("expenseForm").onsubmit=async e=>{
+      e.preventDefault();const f=new FormData(e.currentTarget);
+      const amount=Number(f.get("amount"));
+      if(!Number.isFinite(amount)||amount<=0||amount>1000000)return;
+      const btn=$("saveExpense");btn.disabled=true;
+      const {error}=await db.from("enf_expenses").insert({description:String(f.get("description")).trim(),category:String(f.get("category")),amount,expense_date:String(f.get("expense_date"))});
+      btn.disabled=false;
+      if(error){$("expenseNotice").textContent="Não foi possível salvar: "+error.message;return;}
+      $("expenseForm").hidden=true;await loadExpenses();$("expenseNotice").textContent="Despesa registrada com sucesso!";
+    };
     $("financeMonth").value=localDate().slice(0,7);
     $("financeMonth").onchange=renderFinance;
     function renderOrders(){
