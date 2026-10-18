@@ -26,14 +26,14 @@ function render(){
 }
 function update(){let x=current();if(mode==="avulso"){const el=$("buyselected");if(el){el.replaceChildren();const title=document.createElement("strong");title.textContent=x.count?"Cards selecionados ("+x.count+"):":"Nenhum card selecionado ainda.";el.append(title);(x.selected||[]).forEach(item=>{const line=document.createElement("div");line.textContent="• "+item.cat+" | "+item.name+" ("+item.qty+" card"+(item.qty>1?"s":"")+")";el.append(line)})}}$("buytotal").textContent=money(x.amount);$("buydisclaimer").textContent=mode==="conjunto"&&first?"Valor promocional sujeito à confirmação da primeira compra pelo WhatsApp.":mode==="kit"?"Kits com valores anteriores; compare com a compra avulsa antes de confirmar.":"Preço de lançamento: R$ 2,50 por card.";}
 document.querySelectorAll(".buytabs button").forEach(b=>b.addEventListener("click",()=>{mode=b.dataset.mode;render()}));
-$("buywa").onclick=()=>{
+$("buywa").onclick=async()=>{
  let x=current();if(mode==="avulso"&&!x.count){alert("Selecione os cards no catálogo antes de enviar o pedido.");document.getElementById("categorias")?.scrollIntoView({behavior:"smooth"});return}let note=mode==="conjunto"?(first?"Solicito desconto de primeira compra, sujeito a confirmação.":"Compra sem desconto de primeira compra."):"";
  let lines=mode==="avulso"?(x.selected||[]).map(i=>"• "+i.cat+" / "+i.name+" ("+i.qty+" card"+(i.qty>1?"s":"")+")"):[];let msg=["💜 *PEDIDO UNIVERSO ENF*","*Modalidade:* "+({avulso:"Cards avulsos",conjunto:"Conjunto completo",kit:"Kit personalizado"}[mode]),"*Seleção:* "+x.label,...(lines.length?["*Cards escolhidos:*",...lines]:[]),"*Quantidade:* "+x.count+" cards","*Valor estimado:* "+money(x.amount),note,mode==="kit"?"Gostaria de informar os conteúdos desejados.":"","Por favor, confirme disponibilidade, preço e condições do pedido."].filter(Boolean).join("\n");
  const customerName=document.getElementById("name")?.value?.trim()||"Cliente pelo site";
  const customerPhone=document.getElementById("phone")?.value?.trim()||"";
  const items=[x.label,...lines].join("\n");
- window.universoRegistrarPedido?.({customer_name:customerName,customer_phone:customerPhone,items,quantity:x.count,total_amount:x.amount,notes:[note,mode==="kit"?"Kit: conteúdos a confirmar":""].filter(Boolean).join(" · ")});
- window.open("https://wa.me/5596991522760?text="+encodeURIComponent(msg),"_blank","noopener");
+ try { if(typeof window.universoRegistrarPedido!=="function") throw new Error("Integração não carregada"); await window.universoRegistrarPedido({customer_name:customerName,customer_phone:customerPhone,items,quantity:x.count,total_amount:x.amount,notes:[note,mode==="kit"?"Kit: conteúdos a confirmar":""].filter(Boolean).join(" · ")}); } catch(e) { alert("Não foi possível registrar seu pedido no sistema. Tente atualizar a página ou entre em contato pelo WhatsApp."); return; }
+ window.location.href="https://wa.me/5596991522760?text="+encodeURIComponent(msg);
 };
 render();
 if(typeof S!=="undefined"){const originalUp=up;up=function(){originalUp();if(mode==="avulso")update()}}
