@@ -58,7 +58,9 @@ window.universoRegistrarPedido=async function(p){
       p_quantity:p.quantity,p_total_amount:p.total_amount,p_notes:p.notes||""
     });
     if(error)throw error;
-    return data;
+    if(!Number.isSafeInteger(Number(data)) || Number(data)<=0)throw new Error("Banco não confirmou número do pedido");
+    sessionStorage.removeItem(key);
+    return Number(data);
   }catch(e){console.error("Falha ao registrar pedido:",e);throw e;}
 };
 </script></body></html>
