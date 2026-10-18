@@ -32,10 +32,17 @@ $("buywa").onclick=async()=>{
  const customerName=document.getElementById("name")?.value?.trim()||"Cliente pelo site";
  const customerPhone=document.getElementById("phone")?.value?.trim()||"";
  const items=[x.label,...lines].join("\n");
- try { if(typeof window.universoRegistrarPedido!=="function") throw new Error("Integração não carregada"); const orderId=await window.universoRegistrarPedido({customer_name:customerName,customer_phone:customerPhone,items,quantity:x.count,total_amount:x.amount,notes:[note,mode==="kit"?"Kit: conteúdos a confirmar":""].filter(Boolean).join(" · ")}); } catch(e) { alert("Não foi possível registrar seu pedido no sistema. Tente atualizar a página ou entre em contato pelo WhatsApp."); return; }
+ let orderId;
+ try { if(typeof window.universoRegistrarPedido!=="function") throw new Error("Integração não carregada"); orderId=await window.universoRegistrarPedido({customer_name:customerName,customer_phone:customerPhone,items,quantity:x.count,total_amount:x.amount,notes:[note,mode==="kit"?"Kit: conteúdos a confirmar":""].filter(Boolean).join(" · ")}); } catch(e) { alert("Não foi possível registrar seu pedido no sistema. Tente atualizar a página ou entre em contato pelo WhatsApp."); return; }
  msg+="\n*Número do pedido:* #ENF-"+String(orderId).padStart(4,"0");
- alert("Pedido #ENF-"+String(orderId).padStart(4,"0")+" registrado no painel! Vamos abrir o WhatsApp.");
- window.location.href="https://wa.me/5596991522760?text="+encodeURIComponent(msg);
+ const url="https://wa.me/5596991522760?text="+encodeURIComponent(msg);
+ const old=document.getElementById("enf-wa-confirm");
+ if(old)old.remove();
+ const notice=document.createElement("div");notice.id="enf-wa-confirm";notice.style.cssText="padding:16px;margin:12px 0;border:2px solid #ad85dc;border-radius:16px;background:#f9f3ff;color:#45246f;text-align:center";
+ const title=document.createElement("p");title.textContent="💜 Pedido #ENF-"+String(orderId).padStart(4,"0")+" registrado no painel!";
+ const link=document.createElement("a");link.href=url;link.target="_blank";link.rel="noopener noreferrer";link.textContent="📲 Abrir WhatsApp e enviar pedido";link.style.cssText="display:block;padding:13px;background:#7442b0;color:white;border-radius:10px;font-weight:bold;text-decoration:none";
+ const hint=document.createElement("p");hint.textContent="Toque no botão acima para enviar a mensagem ao WhatsApp e confirmar seu pedido.";hint.style.fontSize="13px";
+ notice.append(title,link,hint);document.getElementById("buywa").insertAdjacentElement("afterend",notice);notice.scrollIntoView({behavior:"smooth",block:"center"});
 };
 render();
 if(typeof S!=="undefined"){const originalUp=up;up=function(){originalUp();if(mode==="avulso")update()}}
