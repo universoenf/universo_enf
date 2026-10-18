@@ -53,7 +53,26 @@
       border-radius: 10px;
       cursor: pointer;
     }
-    [hidden] { display: none !important; }
+
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;margin:18px 0}
+    .stat{padding:15px;border-radius:14px;background:#f6f0ff;border:1px solid #e8d9fa}
+    .stat b{display:block;font-size:26px;margin-top:6px}
+    .fieldgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    label{font-size:13px;font-weight:bold;display:block}
+    input,select,textarea{width:100%;max-width:none;padding:11px;margin:6px 0 0;border:1px solid #d8c9e8;border-radius:10px;background:white;color:#302448;font:inherit}
+    textarea{min-height:85px;resize:vertical}
+    .order{border:1px solid #eadff5;border-radius:14px;padding:16px;margin-top:12px;background:#fff}
+    .orderhead{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+    .muted{color:#756c83;font-size:13px}
+    .pill{display:inline-block;border-radius:99px;padding:5px 10px;background:#f2e7ff;font-size:12px;font-weight:bold}
+    .ordercontrols{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
+    .secondary{background:#f1e9fc;color:#60418f}
+    .feedback{font-weight:bold;color:#654394}
+    .hide{display:none!important}
+    button:disabled{opacity:.6;cursor:wait}
+    h2{margin-top:0}
+        [hidden] { display: none !important; }
   </style>
 </head>
 <body>
@@ -91,6 +110,35 @@
         <button id="exit">Sair da conta</button>
       </div>
 
+
+      <section class="panel" id="ordersModule">
+        <div class="toolbar"><div><h2>🛍️ Pedidos</h2><p class="muted">Acompanhe suas encomendas do início à entrega.</p></div><button id="newOrder" type="button">+ Novo pedido</button></div>
+        <p id="ordersNotice" class="feedback" role="status"></p>
+        <div class="stats" id="orderStats"></div>
+        <div id="orderFormWrap" class="panel" hidden>
+          <h3 id="formTitle">Cadastrar pedido</h3>
+          <form id="orderForm">
+            <div class="fieldgrid">
+              <label>Nome do cliente *<input name="customer_name" maxlength="120" required></label>
+              <label>WhatsApp <input name="customer_phone" type="tel" maxlength="30" placeholder="(96) 99999-9999"></label>
+              <label>Quantidade de cards *<input name="quantity" type="number" min="1" max="10000" required></label>
+              <label>Valor total (R$) *<input name="total_amount" type="number" min="0" max="1000000" step="0.01" required></label>
+              <label>Situação do pedido<select name="status"><option>Pendente</option><option>Em produção</option><option>Pronto</option><option>Entregue</option><option>Cancelado</option></select></label>
+              <label>Pagamento<select name="payment_status"><option>Aguardando</option><option>Parcial</option><option>Pago</option><option>Reembolsado</option></select></label>
+              <label>Previsão de entrega<input name="due_date" type="date"></label>
+            </div>
+            <label style="margin-top:12px">Cards ou kit solicitado *<textarea name="items" maxlength="3000" required placeholder="Ex.: 30 cards de Anatomia"></textarea></label>
+            <label style="margin-top:12px">Observações<textarea name="notes" maxlength="3000" placeholder="Personalização, retirada, envio..."></textarea></label>
+            <div class="toolbar" style="justify-content:flex-start;margin-top:14px"><button id="saveOrder" type="submit">Salvar pedido</button><button class="secondary" id="cancelOrder" type="button">Cancelar edição</button></div>
+          </form>
+        </div>
+        <div class="fieldgrid">
+          <label>Filtrar por situação<select id="orderFilter"><option>Todos</option><option>Pendente</option><option>Em produção</option><option>Pronto</option><option>Entregue</option><option>Cancelado</option></select></label>
+          <label>Buscar cliente ou pedido<input id="orderSearch" placeholder="Nome, código ou cards..."></label>
+        </div>
+        <div id="ordersList" aria-live="polite"><p class="muted">Carregando pedidos...</p></div>
+      </section>
+      
       <div class="grid">
         <div class="card">
           <h3>🛍️ Pedidos</h3>
@@ -156,6 +204,7 @@
         }
 
         show("dashboard");
+        await loadOrders();
       } catch {
         show("login");
         $("message").textContent = "Erro de conexão. Tente novamente.";
@@ -187,6 +236,70 @@
     $("exit").onclick = logout;
     $("deniedExit").onclick = logout;
 
+
+    let orders = [], editingId = null;
+    const statuses=["Pendente","Em produção","Pronto","Entregue","Cancelado"];
+    const money = v => Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+    const fmtDate = d => d ? new Date(d+"T12:00:00").toLocaleDateString("pt-BR") : "Não definida";
+    function elt(tag, text, cls) { const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e; }
+    function notice(t){$("ordersNotice").textContent=t;}
+    function renderOrders(){
+      const stats=$("orderStats");stats.replaceChildren();
+      [["Todos",orders.length],...statuses.map(x=>[x,orders.filter(o=>o.status===x).length])].forEach(([label,count])=>{
+        const card=elt("div",undefined,"stat");card.append(elt("span",label),elt("b",String(count)));stats.append(card);
+      });
+      const f=$("orderFilter").value,q=$("orderSearch").value.toLocaleLowerCase("pt-BR");
+      const shown=orders.filter(o=>(f==="Todos"||o.status===f)&&[o.customer_name,o.items,String(o.id)].some(x=>String(x||"").toLocaleLowerCase("pt-BR").includes(q)));
+      const list=$("ordersList");list.replaceChildren();
+      if(!shown.length){list.append(elt("p",orders.length?"Nenhum pedido corresponde ao filtro.":"Nenhum pedido cadastrado ainda.","muted"));return;}
+      shown.forEach(o=>{
+        const card=elt("article",undefined,"order"),head=elt("div",undefined,"orderhead");
+        const title=elt("strong","#ENF-"+String(o.id).padStart(4,"0")+" · "+o.customer_name);
+        head.append(title,elt("span",o.status,"pill"));card.append(head);
+        card.append(elt("p",o.items),elt("p",o.quantity+" card(s) · "+money(o.total_amount)+" · Pagamento: "+o.payment_status,"muted"));
+        card.append(elt("p","Previsão: "+fmtDate(o.due_date)+(o.customer_phone?" · WhatsApp: "+o.customer_phone:""),"muted"));
+        if(o.notes)card.append(elt("p","Observações: "+o.notes,"muted"));
+        const controls=elt("div",undefined,"ordercontrols");
+        const st=elt("label","Andamento"),stSel=elt("select");statuses.forEach(x=>{const op=elt("option",x);op.value=x;op.selected=x===o.status;stSel.append(op)});
+        stSel.onchange=()=>patchOrder(o.id,{status:stSel.value},stSel);st.append(stSel);
+        const pay=elt("label","Pagamento"),paySel=elt("select");
+        ["Aguardando","Parcial","Pago","Reembolsado"].forEach(x=>{const op=elt("option",x);op.value=x;op.selected=x===o.payment_status;paySel.append(op)});
+        paySel.onchange=()=>patchOrder(o.id,{payment_status:paySel.value},paySel);pay.append(paySel);
+        const edit=elt("button","Editar","secondary");edit.type="button";edit.onclick=()=>openForm(o);
+        controls.append(st,pay,edit);card.append(controls);list.append(card);
+      });
+    }
+    async function loadOrders(){
+      notice("");const {data,error}=await db.from("enf_orders").select("*").order("created_at",{ascending:false}).limit(500);
+      if(error){$("ordersList").replaceChildren(elt("p","A base de pedidos ainda precisa ser ativada no Supabase. Execute o SQL de configuração para começar.","muted"));notice("Configuração do banco de pedidos pendente.");return;}
+      orders=data||[];renderOrders();
+    }
+    async function patchOrder(id,patch,control){
+      control.disabled=true;const {error}=await db.from("enf_orders").update(patch).eq("id",id);
+      control.disabled=false;
+      if(error){notice("Não foi possível atualizar: "+error.message);await loadOrders();return;}
+      const o=orders.find(x=>x.id===id);if(o)Object.assign(o,patch);notice("Pedido atualizado com sucesso.");renderOrders();
+    }
+    function openForm(order=null){
+      editingId=order?.id||null;$("orderForm").reset();$("formTitle").textContent=order?"Editar pedido #ENF-"+String(order.id).padStart(4,"0"):"Cadastrar pedido";
+      if(order){for(const key of ["customer_name","customer_phone","quantity","total_amount","status","payment_status","due_date","items","notes"]){const input=$("orderForm").elements.namedItem(key);if(input)input.value=order[key]??"";}}
+      $("orderFormWrap").hidden=false;$("orderFormWrap").scrollIntoView({behavior:"smooth",block:"start"});
+    }
+    $("newOrder").onclick=()=>openForm();
+    $("cancelOrder").onclick=()=>{$("orderFormWrap").hidden=true;editingId=null};
+    $("orderFilter").onchange=renderOrders;
+    $("orderSearch").oninput=renderOrders;
+    $("orderForm").onsubmit=async e=>{
+      e.preventDefault();const f=new FormData(e.currentTarget);
+      const payload={customer_name:String(f.get("customer_name")).trim(),customer_phone:String(f.get("customer_phone")).trim(),quantity:Number(f.get("quantity")),total_amount:Number(f.get("total_amount")),status:String(f.get("status")),payment_status:String(f.get("payment_status")),due_date:f.get("due_date")||null,items:String(f.get("items")).trim(),notes:String(f.get("notes")).trim()};
+      if(!payload.customer_name||!payload.items||!Number.isInteger(payload.quantity)||payload.quantity<1||!Number.isFinite(payload.total_amount)||payload.total_amount<0){notice("Confira os dados do pedido.");return;}
+      const btn=$("saveOrder");btn.disabled=true;
+      const result=editingId?await db.from("enf_orders").update(payload).eq("id",editingId):await db.from("enf_orders").insert(payload);
+      btn.disabled=false;
+      if(result.error){notice("Não foi possível salvar: "+result.error.message);return;}
+      $("orderFormWrap").hidden=true;editingId=null;await loadOrders();notice("Pedido salvo com sucesso!");
+    };
+    
     await checkAccess();
   </script>
 </body>
