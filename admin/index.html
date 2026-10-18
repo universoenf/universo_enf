@@ -1,0 +1,193 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Universo ENF | Gestão</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f9f6ff;
+      color: #302448;
+    }
+    header {
+      background: linear-gradient(110deg, #7550b6, #db80bd, #85baf0);
+      color: white;
+      padding: 28px 20px;
+      text-align: center;
+    }
+    header h1 { margin: 0; }
+    main { max-width: 1100px; margin: auto; padding: 20px; }
+    .panel, .card {
+      background: white;
+      border: 1px solid #eee3f7;
+      border-radius: 18px;
+      padding: 22px;
+      margin-bottom: 16px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 15px;
+    }
+    .card { margin: 0; }
+    .card h3 { margin-top: 0; }
+    .card p { color: #756c83; }
+    input {
+      display: block;
+      width: 100%;
+      max-width: 350px;
+      padding: 12px;
+      margin: 10px 0;
+      border: 1px solid #d8c9e8;
+      border-radius: 10px;
+    }
+    button {
+      background: #7550b6;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>💜 Universo ENF | Gestão</h1>
+    <p>Central administrativa</p>
+  </header>
+
+  <main>
+    <section id="loading" class="panel">
+      Verificando acesso...
+    </section>
+
+    <section id="login" class="panel" hidden>
+      <h2>Acesso administrativo</h2>
+      <p>Entre com sua conta do Universo ENF.</p>
+      <form id="loginForm">
+        <input id="email" type="email" placeholder="E-mail" required>
+        <input id="password" type="password" placeholder="Senha" required>
+        <button type="submit">Entrar</button>
+      </form>
+      <p id="message"></p>
+    </section>
+
+    <section id="denied" class="panel" hidden>
+      <h2>Acesso restrito</h2>
+      <p>Esta conta não possui autorização administrativa.</p>
+      <button id="deniedExit">Sair</button>
+    </section>
+
+    <section id="dashboard" hidden>
+      <div class="panel">
+        <h2>Bem-vinda ao Universo ENF | Gestão 💜</h2>
+        <p>Seu ambiente de administração está sendo preparado.</p>
+        <button id="exit">Sair da conta</button>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>🛍️ Pedidos</h3>
+          <p>Gerenciamento de vendas e encomendas.</p>
+        </div>
+        <div class="card">
+          <h3>💰 Financeiro</h3>
+          <p>Receitas, despesas e lucros.</p>
+        </div>
+        <div class="card">
+          <h3>📦 Produção</h3>
+          <p>Acompanhamento dos cards.</p>
+        </div>
+        <div class="card">
+          <h3>👥 Clientes</h3>
+          <p>Cadastros e histórico de compras.</p>
+        </div>
+        <div class="card">
+          <h3>⭐ Universo Stars</h3>
+          <p>Pontos e resgates.</p>
+        </div>
+        <div class="card">
+          <h3>📊 Relatórios</h3>
+          <p>Indicadores e desempenho da loja.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { SUPABASE_URL, SUPABASE_ANON_KEY }
+      from "../supabase-config.js";
+    import { createClient }
+      from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const $ = id => document.getElementById(id);
+
+    function show(id) {
+      ["loading", "login", "denied", "dashboard"].forEach(
+        section => $(section).hidden = section !== id
+      );
+    }
+
+    async function checkAccess() {
+      try {
+        const { data: { user } } = await db.auth.getUser();
+
+        if (!user) {
+          show("login");
+          return;
+        }
+
+        const { data: admin, error } = await db
+          .from("admins")
+          .select("user_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (error || !admin) {
+          show("denied");
+          return;
+        }
+
+        show("dashboard");
+      } catch {
+        show("login");
+        $("message").textContent = "Erro de conexão. Tente novamente.";
+      }
+    }
+
+    $("loginForm").onsubmit = async event => {
+      event.preventDefault();
+      $("message").textContent = "Entrando...";
+
+      const { error } = await db.auth.signInWithPassword({
+        email: $("email").value,
+        password: $("password").value
+      });
+
+      if (error) {
+        $("message").textContent = "Confira seu e-mail e senha.";
+        return;
+      }
+
+      await checkAccess();
+    };
+
+    async function logout() {
+      await db.auth.signOut();
+      show("login");
+    }
+
+    $("exit").onclick = logout;
+    $("deniedExit").onclick = logout;
+
+    await checkAccess();
+  </script>
+</body>
+</html>
