@@ -20,20 +20,33 @@ const categoryImages={
 "EXAMES LABORATORIAIS":"EXAMES.png"};
 const icons={"ANATOMIA":"🫀","CIRÚRGICA":"🩺","FARMACOLOGIA":"💊","SAÚDE DO HOMEM":"💙","SAÚDE DO ADOLESCENTE":"🌷","RELATÓRIOS":"📋","TERMINOLOGIAS":"📖","ISTs":"🧬","VACINAÇÃO":"💉","TEORIAS DA ENFERMAGEM":"📚","DISPOSITIVOS":"🩹"};
 const idFor=c=>"cat-"+c.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"-").toLowerCase();
+function showOnly(category,group){
+ const selected=document.getElementById(idFor(category));
+ [...catalog.children].forEach(section=>{
+   section.hidden=section!==selected;
+   if(section===selected){
+     section.open=true;
+     section.querySelectorAll(".group").forEach(part=>{
+       const title=part.querySelector(".gt")?.textContent.trim()||"";
+       part.hidden=!!group&&!title.startsWith(group);
+     });
+   }
+ });
+}
 function openCollection(category,group){
  const search=document.getElementById("search");
  if(search){search.value="";search.dispatchEvent(new Event("input"))}
+ showOnly(category,group);
  panel.hidden=false;
- const details=document.getElementById(idFor(category));
- if(details?.tagName==="DETAILS")details.open=true;
  panel.scrollIntoView({behavior:"smooth",block:"start"});
- if(group&&details)setTimeout(()=>{
- const match=[...details.querySelectorAll(".gt")].find(el=>el.textContent.trim().includes(group));
- if(match)match.scrollIntoView({behavior:"smooth",block:"start"});
- },250);
 }
 document.getElementById("back-collections")?.addEventListener("click",()=>{
- panel.hidden=true;document.getElementById("categorias").scrollIntoView({behavior:"smooth"});
+ panel.hidden=true;
+ [...catalog.children].forEach(section=>{
+   section.hidden=false;
+   section.querySelectorAll(".group").forEach(part=>part.hidden=false);
+ });
+ document.getElementById("categorias").scrollIntoView({behavior:"smooth"});
 });
 const collections=[
  ...Object.keys(D.ANATOMIA||{}).map(group=>({title:group,category:"ANATOMIA",group,image:anatomyImages[group],icon:"🫀"})),
@@ -60,5 +73,5 @@ collections.forEach(item=>{
  card.append(art,name,sub,button);root.append(card);
 });
 const search=document.getElementById("search");
-search?.addEventListener("input",()=>{if(search.value.trim())panel.hidden=false});
+search?.addEventListener("input",()=>{if(search.value.trim()){panel.hidden=false;[...catalog.children].forEach(section=>{section.hidden=false;section.querySelectorAll(".group").forEach(part=>part.hidden=false)})}});
 })();
