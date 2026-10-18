@@ -42,6 +42,7 @@ if(!SUPABASE_URL||!SUPABASE_ANON_KEY){status.textContent="Cadastro em preparaç�
       const balance=document.createElement("p");balance.textContent="⭐ Saldo de estrelas: "+entries.data.reduce((n,e)=>n+e.stars,0);root.append(balance);
       const heading=document.createElement("strong");heading.textContent="Histórico de compras confirmadas";root.append(heading);
       if(!orders.data.length){const empty=document.createElement("p");empty.textContent="Nenhuma compra confirmada.";root.append(empty)}
+      const {data:redeems}=await db.from("star_redemptions").select("reward_type,created_at,note").eq("user_id",p.id).order("created_at",{ascending:false}).limit(20);if(redeems?.length){const label=document.createElement("strong");label.textContent="Resgates de estrelas";root.append(label);redeems.forEach(r=>{const line=document.createElement("p");line.textContent=new Date(r.created_at).toLocaleDateString("pt-BR")+" • "+(r.reward_type==="cards4"?"4 cards gratuitos":"R$ 10 de desconto")+(r.note?" • "+r.note:"");root.append(line)})}
       orders.data.forEach(o=>{const line=document.createElement("p");line.textContent=new Date(o.created_at).toLocaleDateString("pt-BR")+" • "+Number(o.amount).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})+(o.note?" • "+o.note:"");root.append(line)});
     }
     $("auth-signup").onclick=async()=>{const email=$("auth-email").value.trim(),password=$("auth-password").value,name=$("auth-name").value.trim();if(!name||!email||password.length<8){say("Informe nome, e-mail e senha com pelo menos 8 caracteres.");return}const {error}=await db.auth.signUp({email,password,options:{data:{full_name:name},emailRedirectTo:location.origin+location.pathname}});say(error?error.message:"Cadastro solicitado. Verifique seu e-mail para confirmar a conta.");await refresh()};
@@ -49,6 +50,22 @@ if(!SUPABASE_URL||!SUPABASE_ANON_KEY){status.textContent="Cadastro em preparaç�
     $("auth-google").onclick=async()=>{const {error}=await db.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.origin+location.pathname}});if(error)say(error.message)};
     $("auth-signout").onclick=async()=>{await db.auth.signOut();await refresh()};
     $("admin-credit").onclick=async()=>{const user_id=$("admin-user").value.trim(),amount=Number($("admin-amount").value),note=$("admin-note").value.trim();if(!/^[0-9a-f-]{36}$/i.test(user_id)||!Number.isFinite(amount)||amount<=0){$("admin-status").textContent="Selecione um cliente e informe um valor válido.";return}const {data,error}=await db.rpc("confirm_purchase",{p_user_id:user_id,p_amount:amount,p_note:note});$("admin-status").textContent=error?"Erro: "+error.message:"Compra confirmada! "+data+" estrela(s) creditada(s).";if(!error){$("admin-amount").value="";$("admin-note").value="";if(selectedProfile)await selectProfile(selectedProfile);await refresh()}};
+    let redeemBusy=false;
+    $("redeem-confirm").onclick=async()=>{
+      const message=$("redeem-status"),button=$("redeem-confirm");
+      if(redeemBusy)return;
+      if(!selectedProfile){message.textContent="Selecione um cliente primeiro.";return}
+      const amount=Number($("redeem-order").value),type=$("redeem-type").value,note=$("redeem-note").value.trim();
+      if(!Number.isFinite(amount)||amount<30){message.textContent="Informe um pedido de pelo menos R$ 30.";return}
+      const reward=type==="cards4"?"4 cards gratuitos":"R$ 10 de desconto";
+      if(!confirm("Confirmar resgate de 10 estrelas para "+(selectedProfile.full_name||selectedProfile.email)+"? Recompensa: "+reward+". Pedido: R$ "+amount.toFixed(2)))return;
+      redeemBusy=true;button.disabled=true;message.textContent="Registrando resgate...";
+      try{
+        const {data,error}=await db.rpc("redeem_stars",{p_user_id:selectedProfile.id,p_reward_type:type,p_order_amount:amount,p_note:note,p_request_id:crypto.randomUUID()});
+        message.textContent=error?"Resgate não realizado: "+error.message:"Resgate confirmado! Saldo restante: "+data+" ⭐";
+        if(!error){$("redeem-order").value="";$("redeem-note").value="";await selectProfile(selectedProfile);await refresh()}
+      }finally{redeemBusy=false;button.disabled=false}
+    };
     db.auth.onAuthStateChange(()=>setTimeout(refresh,0));
     await refresh();
   }catch(e){status.textContent="Falha ao iniciar autenticação. Confira a configuração e a conexão."}
