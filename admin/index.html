@@ -76,7 +76,7 @@
     .quick-nav{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 16px}
     .quick-nav a{display:inline-flex;align-items:center;justify-content:center;flex:1 1 150px;padding:13px 16px;border-radius:12px;background:#f1e9fc;color:#60418f;text-decoration:none;font-weight:700;border:1px solid #e6d5f7}
     .quick-nav a:hover,.quick-nav a:focus-visible{background:#e8d8fc;outline:2px solid #7550b6;outline-offset:2px}
-    #financeModule,#ordersModule{scroll-margin-top:18px}
+    #financeModule,#ordersModule,#starsModule{scroll-margin-top:18px}
     
     .status-tag{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;border:1px solid transparent}
     .tag-yellow{background:#fff4d6;color:#825800;border-color:#f6df99}
@@ -133,6 +133,7 @@
       <nav class="panel quick-nav" aria-label="Acesso rápido às categorias">
         <a href="#ordersModule">🛍️ Pedidos</a>
         <a href="#financeModule">💰 Financeiro</a>
+        <a href="#starsModule">⭐ Universo Stars</a>
       </nav>
 
       <section class="panel" id="financeModule">
@@ -156,6 +157,16 @@
           <div class="toolbar" style="justify-content:flex-start;margin-top:12px"><button type="submit" id="saveExpense">Salvar despesa</button><button type="button" class="secondary" id="cancelExpense">Cancelar</button></div>
         </form>
         <div id="expensesList"></div>
+      </section>
+
+      <section class="panel" id="starsModule">
+        <h2>⭐ Universo Stars | Recompensas</h2>
+        <p class="muted">A cada R$ 5 pagos, 1 estrela. Com 10 estrelas, o cliente pode escolher 4 cards grátis ou R$ 10 de desconto. Identificação pelo WhatsApp.</p>
+        <div class="stats" id="starsStats"></div>
+        <p id="starsNotice" class="feedback" role="status"></p>
+        <label>Buscar cliente por nome ou WhatsApp<input id="starsSearch" placeholder="Digite para localizar"></label>
+        <div id="starsCustomers"><p class="muted">Carregando clientes...</p></div>
+        <p class="muted">Os créditos automáticos e os resgates serão ativados na próxima etapa de configuração. Nenhuma estrela será concedida antes dessa integração.</p>
       </section>
 
       <section class="panel" id="ordersModule">
@@ -235,6 +246,7 @@
         show("dashboard");
         await loadOrders();
         await loadExpenses();
+        await loadStars();
       } catch {
         show("login");
         $("message").textContent = "Erro de conexão. Tente novamente.";
@@ -309,6 +321,37 @@
       $("financeNote").textContent="Resultado estimado = recebimentos informados em pedidos criados neste mês menos despesas datadas neste mês. Não é lucro contábil nem fluxo de caixa por data de pagamento.";
       renderFinanceChart();
     }
+    let starsCustomers = [], starsMovements = [];
+    async function loadStars(){
+      const [c,m]=await Promise.all([
+        db.from("enf_stars_customers").select("id,customer_name,whatsapp").order("customer_name",{ascending:true}).limit(1000),
+        db.from("enf_stars_movements").select("customer_id,stars,movement_type").limit(5000)
+      ]);
+      if(c.error||m.error){
+        $("starsNotice").textContent="Não foi possível carregar o Universo Stars. Verifique a configuração no Supabase.";
+        $("starsCustomers").replaceChildren();$("starsStats").replaceChildren();return;
+      }
+      starsCustomers=c.data||[];starsMovements=m.data||[];
+      $("starsNotice").textContent="";renderStars();
+    }
+    function renderStars(){
+      const balances=new Map();
+      for(const m of starsMovements)balances.set(m.customer_id,(balances.get(m.customer_id)||0)+Number(m.stars||0));
+      const stats=$("starsStats");stats.replaceChildren();
+      for(const [label,value] of [["Clientes cadastrados",starsCustomers.length],["Estrelas em saldo",starsCustomers.reduce((n,c)=>n+Math.max(0,balances.get(c.id)||0),0)],["Clientes com 10+ estrelas",starsCustomers.filter(c=>(balances.get(c.id)||0)>=10).length]]){
+        const card=elt("div",undefined,"stat");card.append(elt("span",label),elt("b",String(value)));stats.append(card);
+      }
+      const q=$("starsSearch").value.toLocaleLowerCase("pt-BR"),list=$("starsCustomers");list.replaceChildren();
+      const shown=starsCustomers.filter(c=>(c.customer_name+" "+c.whatsapp).toLocaleLowerCase("pt-BR").includes(q));
+      if(!shown.length){list.append(elt("p",starsCustomers.length?"Nenhum cliente encontrado.":"Nenhum cliente cadastrado ainda. Os créditos serão habilitados na próxima etapa.","muted"));return;}
+      for(const c of shown){
+        const balance=balances.get(c.id)||0,card=elt("div",undefined,"order"),head=elt("div",undefined,"orderhead");
+        head.append(elt("strong",c.customer_name),elt("strong",balance+" ⭐"));card.append(head,elt("p","WhatsApp: "+c.whatsapp,"muted"));
+        card.append(elt("p",balance>=10?"🎁 Recompensa disponível":"Faltam "+(10-balance)+" estrela(s) para a próxima recompensa.","muted"));
+        list.append(card);
+      }
+    }
+    $("starsSearch").oninput=renderStars;
     async function loadExpenses(){
       const {data,error}=await db.from("enf_expenses").select("*").order("expense_date",{ascending:false}).limit(1000);
       expensesReady=!error;
