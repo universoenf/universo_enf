@@ -131,6 +131,9 @@
         <div class="stats" id="financeStats"></div>
         <p class="muted" id="financeNote">Os valores são estimativas conforme o status informado no painel. Pagamentos parciais não são contabilizados como recebidos até a confirmação integral.</p>
         <div id="financeBreakdown"></div>
+        <div class="toolbar" style="margin-top:18px"><h3 style="margin:0">📊 Evolução financeira</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="exportFinance" type="button" class="secondary">📗 Exportar Excel (CSV)</button><button id="printFinance" type="button" class="secondary">📄 Salvar PDF</button></div></div>
+        <p class="muted">Comparativo dos últimos 6 meses. O PDF usa a opção Imprimir / Salvar como PDF do navegador.</p>
+        <div id="financeChart" style="overflow-x:auto"></div>
         <div class="toolbar" style="margin-top:20px"><h3 style="margin:0">🧾 Despesas do mês</h3><button type="button" id="addExpense">+ Nova despesa</button></div>
         <p id="expenseNotice" class="feedback" role="status"></p>
         <form id="expenseForm" class="panel" hidden>
@@ -318,7 +321,8 @@
       cards.forEach(([label,value])=>{const card=elt("div",undefined,"stat");card.append(elt("span",label),elt("b",value));card.querySelector("b").style.fontSize="clamp(17px,2.5vw,25px)";root.append(card)});
       const summary=$("financeBreakdown");summary.replaceChildren();
       summary.append(elt("p","Pedidos pagos: "+paid.length+" · Aguardando: "+awaiting.length+" · Parciais: "+partial.length+" · Excluídos dos totais: "+excluded.length,"muted"));
-      $("financeNote").textContent="Competência por data do pedido, não pela data do pagamento. Valores recebidos consideram apenas pedidos marcados como Pago e não cancelados. Pagamentos parciais sem valor preenchido são contabilizados como R$ 0 recebido até a informação do valor. O resumo não calcula lucro nem despesas.";
+      $("financeNote").textContent="Resultado estimado = recebimentos informados em pedidos criados neste mês menos despesas datadas neste mês. Não é lucro contábil nem fluxo de caixa por data de pagamento.";
+      renderFinanceChart();
     }
     async function loadExpenses(){
       const {data,error}=await db.from("enf_expenses").select("*").order("expense_date",{ascending:false}).limit(1000);
@@ -358,6 +362,69 @@
       btn.disabled=false;
       if(error){$("expenseNotice").textContent="Não foi possível salvar: "+error.message;return;}
       $("expenseForm").hidden=true;await loadExpenses();$("expenseNotice").textContent="Despesa registrada com sucesso!";
+    };
+    function monthSummary(month){
+      const valid=orders.filter(o=>String(o.created_at||"").slice(0,7)===month&&o.status!=="Cancelado"&&o.payment_status!=="Reembolsado");
+      const receivedAmount=valid.reduce((n,o)=>n+received(o),0);
+      const expensesAmount=expenses.filter(e=>String(e.expense_date||"").slice(0,7)===month).reduce((n,e)=>n+Number(e.amount||0),0);
+      return {month,orders:valid.length,sales:valid.reduce((n,o)=>n+Number(o.total_amount||0),0),received:receivedAmount,expenses:expensesAmount,result:receivedAmount-expensesAmount};
+    }
+    function recentMonths(){
+      const selected=$("financeMonth").value||localDate().slice(0,7);
+      const [year,month]=selected.split("-").map(Number);
+      return Array.from({length:6},(_,i)=>{
+        const d=new Date(year,month-1-(5-i),1);
+        return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+      });
+    }
+    function renderFinanceChart(){
+      const data=recentMonths().map(monthSummary);
+      const max=Math.max(1,...data.flatMap(d=>[d.received,d.expenses]));
+      const host=$("financeChart");host.replaceChildren();
+      const legend=elt("p","🟣 Recebido    🩷 Despesas    |    Valores em R$","muted");host.append(legend);
+      const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+      svg.setAttribute("viewBox","0 0 720 265");svg.setAttribute("role","img");
+      svg.setAttribute("aria-label","Gráfico de recebimentos e despesas nos últimos seis meses");
+      svg.style.cssText="width:100%;min-width:500px;max-height:330px;background:#fcfaff;border:1px solid #eee3f7;border-radius:14px";
+      const node=(tag,attrs,content)=>{const n=document.createElementNS("http://www.w3.org/2000/svg",tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,String(v)));if(content!==undefined)n.textContent=content;svg.append(n);return n;};
+      for(let i=0;i<=4;i++){const y=208-i*45;node("line",{x1:55,y1:y,x2:705,y2:y,stroke:"#e7ddf2"});node("text",{x:48,y:y+4,"text-anchor":"end",fill:"#776b8a","font-size":11},Math.round(max*i/4).toLocaleString("pt-BR"));}
+      data.forEach((d,i)=>{
+        const x=75+i*105;
+        [["received","#7550b6",0],["expenses","#db80bd",31]].forEach(([key,color,offset])=>{
+          const h=Math.max(0,180*Math.max(0,d[key])/max);
+          node("rect",{x:x+offset,y:208-h,width:27,height:h,rx:4,fill:color});
+        });
+        node("text",{x:x+28,y:230,"text-anchor":"middle",fill:"#4f4164","font-size":12},d.month.slice(5)+"/"+d.month.slice(2,4));
+        node("text",{x:x+28,y:247,"text-anchor":"middle",fill:"#756c83","font-size":10},money(d.result));
+      });
+      host.append(svg);
+    }
+    function csvCell(value){
+      let s=String(value??"");
+      if(/^[\s]*[=+@\-\t\r]/.test(s))s="'"+s;
+      return '"'+s.replace(/"/g,'""')+'"';
+    }
+    $("exportFinance").onclick=()=>{
+      const m=$("financeMonth").value;
+      const rows=[["UNIVERSO ENF - Relatório financeiro",m],["Critério","Pedidos agrupados por criação; despesas por data; recebimentos informados"],[],["Mês","Pedidos válidos","Vendas (R$)","Recebido (R$)","Despesas (R$)","Resultado estimado (R$)"]];
+      recentMonths().forEach(x=>{const d=monthSummary(x);rows.push([d.month,d.orders,d.sales.toFixed(2),d.received.toFixed(2),d.expenses.toFixed(2),d.result.toFixed(2)]);});
+      rows.push([],["DESPESAS DO MÊS",m],["Data","Categoria","Descrição","Valor (R$)"]);
+      expenses.filter(e=>String(e.expense_date||"").slice(0,7)===m).forEach(e=>rows.push([e.expense_date,e.category,e.description,Number(e.amount).toFixed(2)]));
+      rows.push([],["PEDIDOS DO MÊS",m],["Número","Cliente","Status","Pagamento","Total (R$)","Recebido (R$)"]);
+      orders.filter(o=>String(o.created_at||"").slice(0,7)===m).forEach(o=>rows.push(["ENF-"+String(o.id).padStart(4,"0"),o.customer_name,o.status,o.payment_status,Number(o.total_amount).toFixed(2),received(o).toFixed(2)]));
+      const csv="\uFEFF"+rows.map(r=>r.map(csvCell).join(";")).join("\r\n");
+      const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+      const a=document.createElement("a");a.href=url;a.download="universo-enf-financeiro-"+m+".csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+    };
+    $("printFinance").onclick=()=>{
+      const m=$("financeMonth").value;
+      const d=monthSummary(m);
+      const report=window.open("","_blank");
+      if(!report){alert("Permita janelas pop-up para gerar o PDF.");return;}
+      const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+      const rows=expenses.filter(e=>String(e.expense_date||"").slice(0,7)===m).map(e=>"<tr><td>"+esc(e.expense_date)+"</td><td>"+esc(e.category)+"</td><td>"+esc(e.description)+"</td><td>"+esc(money(e.amount))+"</td></tr>").join("");
+      report.document.write('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Financeiro Universo ENF '+esc(m)+'</title><style>body{font:15px Arial;color:#302448;margin:32px}h1{color:#7550b6}table{border-collapse:collapse;width:100%;margin-top:18px}td,th{border-bottom:1px solid #ddd;padding:9px;text-align:left}small{color:#666}</style><h1>💜 Universo ENF | Relatório financeiro</h1><h2>Mês: '+esc(m)+'</h2><p>Pedidos válidos: '+d.orders+'</p><p>Valor dos pedidos: '+esc(money(d.sales))+'</p><p>Recebido informado: '+esc(money(d.received))+'</p><p>Despesas: '+esc(money(d.expenses))+'</p><h2>Resultado estimado: '+esc(money(d.result))+'</h2><h3>Despesas cadastradas</h3><table><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Valor</th></tr>'+rows+'</table><p><small>Resumo por mês de criação dos pedidos e data das despesas. Não representa lucro contábil ou fluxo de caixa.</small></p></html>');
+      report.document.close();report.focus();setTimeout(()=>report.print(),350);
     };
     $("financeMonth").value=localDate().slice(0,7);
     $("financeMonth").onchange=renderFinance;
