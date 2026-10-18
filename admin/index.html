@@ -146,6 +146,7 @@
               <label>Quantidade de cards *<input name="quantity" type="number" min="1" max="10000" required></label>
               <label>Valor total (R$) *<input name="total_amount" type="number" min="0" max="1000000" step="0.01" required></label>
               <label>Situação do pedido<select name="status"><option>Pendente</option><option>Em produção</option><option>Pronto</option><option>Entregue</option><option>Cancelado</option></select></label>
+              <label>Valor já recebido (R$)<input name="paid_amount" type="number" min="0" max="1000000" step="0.01" placeholder="Informe em pagamentos parciais"></label>
               <label>Pagamento<select name="payment_status"><option>Aguardando</option><option>Parcial</option><option>Pago</option><option>Reembolsado</option></select></label>
               <label>Previsão de entrega<input name="due_date" type="date"></label>
               <label>Forma de entrega<select name="delivery_method"><option value="">A definir</option><option>Retirada</option><option>Entrega local</option><option>Envio</option></select></label>
@@ -276,6 +277,7 @@
     function statusBadge(value,prefix=""){const b=elt("span",statusEmoji[value]+" "+prefix+value,"status-tag tag-"+(statusColor[value]||"purple"));return b;}
     function colorSelect(select,value){select.className="status-select tag-"+(statusColor[value]||"purple");}
     const localDate=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+    const received=o=>o.payment_status==="Pago"?Number(o.total_amount||0):o.payment_status==="Parcial"?(o.paid_amount==null?0:Number(o.paid_amount)):0;
     function renderFinance(){
       const month=$("financeMonth").value;
       const active=orders.filter(o=>String(o.created_at||"").slice(0,7)===month);
@@ -285,19 +287,22 @@
       const awaiting=valid.filter(o=>o.payment_status==="Aguardando");
       const partial=valid.filter(o=>o.payment_status==="Parcial");
       const excluded=active.filter(o=>o.status==="Cancelado"||o.payment_status==="Reembolsado");
+      const receivedTotal=valid.reduce((n,o)=>n+received(o),0);
+      const balance=valid.reduce((n,o)=>n+Math.max(0,Number(o.total_amount||0)-received(o)),0);
       const cards=[
         ["Pedidos no mês",String(active.length)],
         ["Valor dos pedidos válidos",money(sum(valid))],
-        ["Marcados como pagos",money(sum(paid))],
+        ["Recebido informado",money(receivedTotal)],
+        ["Saldo a receber",money(balance)],
         ["Aguardando pagamento",money(sum(awaiting))],
-        ["Pagamento parcial (valor total)",money(sum(partial))],
+        ["Recebido em pagamentos parciais",money(partial.reduce((n,o)=>n+received(o),0))],
         ["Cancelados/reembolsados",money(sum(excluded))]
       ];
       const root=$("financeStats");root.replaceChildren();
       cards.forEach(([label,value])=>{const card=elt("div",undefined,"stat");card.append(elt("span",label),elt("b",value));card.querySelector("b").style.fontSize="clamp(17px,2.5vw,25px)";root.append(card)});
       const summary=$("financeBreakdown");summary.replaceChildren();
       summary.append(elt("p","Pedidos pagos: "+paid.length+" · Aguardando: "+awaiting.length+" · Parciais: "+partial.length+" · Excluídos dos totais: "+excluded.length,"muted"));
-      $("financeNote").textContent="Competência por data do pedido, não pela data do pagamento. Valores recebidos consideram apenas pedidos marcados como Pago e não cancelados. Pagamentos parciais mostram o valor total do pedido, não o valor já recebido. Este resumo não calcula lucro nem despesas.";
+      $("financeNote").textContent="Competência por data do pedido, não pela data do pagamento. Valores recebidos consideram apenas pedidos marcados como Pago e não cancelados. Pagamentos parciais sem valor preenchido são contabilizados como R$ 0 recebido até a informação do valor. O resumo não calcula lucro nem despesas.";
     }
     $("financeMonth").value=localDate().slice(0,7);
     $("financeMonth").onchange=renderFinance;
@@ -320,6 +325,7 @@
         head.append(title,statusBadge(o.status));card.append(head);
         const tags=elt("div",undefined,"status-line");tags.append(statusBadge(o.status,"Andamento: "),statusBadge(o.payment_status,"Pagamento: "));card.append(tags);
         card.append(elt("p",o.items),elt("p",o.quantity+" card(s) · "+money(o.total_amount)+" · Pagamento: "+o.payment_status,"muted"));
+        if(o.payment_status!=="Reembolsado"&&o.status!=="Cancelado")card.append(elt("p","Recebido: "+money(received(o))+" · Falta receber: "+money(Math.max(0,Number(o.total_amount)-received(o)))+(o.payment_status==="Parcial"&&o.paid_amount==null?" · Valor parcial ainda não informado":""),"muted"));
         card.append(elt("p","Pedido: "+new Date(o.created_at).toLocaleDateString("pt-BR")+" · Previsão: "+fmtDate(o.due_date)+(o.delivered_at?" · Entregue: "+fmtDate(o.delivered_at):""),"muted"));
         card.append(elt("p","Entrega: "+(o.delivery_method||"A definir")+(o.tracking_code?" · Rastreio: "+o.tracking_code:"")+(o.customer_phone?" · WhatsApp: "+o.customer_phone:""),"muted"));
         if(o.notes)card.append(elt("p","Observações: "+o.notes,"muted"));
@@ -351,6 +357,9 @@
     async function patchOrder(id,patch,control){
       control.disabled=true;
       if(patch.status==="Entregue"){const previous=orders.find(x=>x.id===id);if(previous&&!previous.delivered_at)patch.delivered_at=localDate();}
+      if(patch.payment_status==="Pago")patch.paid_amount=orders.find(x=>x.id===id)?.total_amount??0;
+      if(patch.payment_status==="Aguardando"||patch.payment_status==="Reembolsado")patch.paid_amount=null;
+      if(patch.payment_status==="Parcial")patch.paid_amount=null;
       const {error}=await db.from("enf_orders").update(patch).eq("id",id);
       control.disabled=false;
       if(error){notice("Não foi possível atualizar: "+error.message);await loadOrders();return;}
@@ -358,7 +367,7 @@
     }
     function openForm(order=null){
       editingId=order?.id||null;$("orderForm").reset();$("formTitle").textContent=order?"Editar pedido #ENF-"+String(order.id).padStart(4,"0"):"Cadastrar pedido";
-      if(order){for(const key of ["customer_name","customer_phone","quantity","total_amount","status","payment_status","due_date","delivery_method","delivered_at","tracking_code","items","notes"]){const input=$("orderForm").elements.namedItem(key);if(input)input.value=order[key]??"";}}
+      if(order){for(const key of ["customer_name","customer_phone","quantity","total_amount","paid_amount","status","payment_status","due_date","delivery_method","delivered_at","tracking_code","items","notes"]){const input=$("orderForm").elements.namedItem(key);if(input)input.value=order[key]??"";}}
       ["status","payment_status"].forEach(k=>{const sel=$("orderForm").elements.namedItem(k);colorSelect(sel,sel.value);sel.onchange=()=>colorSelect(sel,sel.value)});
       $("orderFormWrap").hidden=false;$("orderFormWrap").scrollIntoView({behavior:"smooth",block:"start"});
     }
@@ -369,8 +378,11 @@
     ["dateField","dateStart","dateEnd"].forEach(id=>$(id).onchange=renderOrders);
     $("orderForm").onsubmit=async e=>{
       e.preventDefault();const f=new FormData(e.currentTarget);
-      const payload={customer_name:String(f.get("customer_name")).trim(),customer_phone:String(f.get("customer_phone")).trim(),quantity:Number(f.get("quantity")),total_amount:Number(f.get("total_amount")),status:String(f.get("status")),payment_status:String(f.get("payment_status")),due_date:f.get("due_date")||null,delivery_method:String(f.get("delivery_method")||""),delivered_at:f.get("delivered_at")||null,tracking_code:String(f.get("tracking_code")||"").trim(),items:String(f.get("items")).trim(),notes:String(f.get("notes")).trim()};
+      const payload={customer_name:String(f.get("customer_name")).trim(),customer_phone:String(f.get("customer_phone")).trim(),quantity:Number(f.get("quantity")),total_amount:Number(f.get("total_amount")),paid_amount:f.get("paid_amount")===""?null:Number(f.get("paid_amount")),status:String(f.get("status")),payment_status:String(f.get("payment_status")),due_date:f.get("due_date")||null,delivery_method:String(f.get("delivery_method")||""),delivered_at:f.get("delivered_at")||null,tracking_code:String(f.get("tracking_code")||"").trim(),items:String(f.get("items")).trim(),notes:String(f.get("notes")).trim()};
       if(!payload.customer_name||!payload.items||!Number.isInteger(payload.quantity)||payload.quantity<1||!Number.isFinite(payload.total_amount)||payload.total_amount<0){notice("Confira os dados do pedido.");return;}
+      if(payload.paid_amount!==null&&(!Number.isFinite(payload.paid_amount)||payload.paid_amount<0||payload.paid_amount>payload.total_amount)){notice("O valor recebido deve ficar entre zero e o total do pedido.");return;}
+      if(payload.payment_status==="Pago")payload.paid_amount=payload.total_amount;
+      if(payload.payment_status==="Aguardando"||payload.payment_status==="Reembolsado")payload.paid_amount=null;
       if(payload.status==="Entregue"&&!payload.delivered_at)payload.delivered_at=localDate();
       const btn=$("saveOrder");btn.disabled=true;
       const result=editingId?await db.from("enf_orders").update(payload).eq("id",editingId):await db.from("enf_orders").insert(payload);
