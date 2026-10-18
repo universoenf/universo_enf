@@ -125,6 +125,14 @@
       </div>
 
 
+      <section class="panel" id="financeModule">
+        <div class="toolbar"><div><h2>💰 Financeiro</h2><p class="muted">Resumo baseado nos pedidos cadastrados e nos pagamentos confirmados manualmente.</p></div>
+          <label style="min-width:185px">Mês dos pedidos<input id="financeMonth" type="month"></label></div>
+        <div class="stats" id="financeStats"></div>
+        <p class="muted" id="financeNote">Os valores são estimativas conforme o status informado no painel. Pagamentos parciais não são contabilizados como recebidos até a confirmação integral.</p>
+        <div id="financeBreakdown"></div>
+      </section>
+
       <section class="panel" id="ordersModule">
         <div class="toolbar"><div><h2>🛍️ Pedidos</h2><p class="muted">Acompanhe suas encomendas do início à entrega.</p></div><button id="newOrder" type="button">+ Novo pedido</button></div>
         <p id="ordersNotice" class="feedback" role="status"></p>
@@ -166,7 +174,7 @@
         </div>
         <div class="card">
           <h3>💰 Financeiro</h3>
-          <p>Receitas, despesas e lucros.</p>
+          <p>Resumo de pagamentos e pedidos por mês. Custos e lucros em preparação.</p>
         </div>
         <div class="card">
           <h3>📦 Produção</h3>
@@ -268,6 +276,31 @@
     function statusBadge(value,prefix=""){const b=elt("span",statusEmoji[value]+" "+prefix+value,"status-tag tag-"+(statusColor[value]||"purple"));return b;}
     function colorSelect(select,value){select.className="status-select tag-"+(statusColor[value]||"purple");}
     const localDate=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+    function renderFinance(){
+      const month=$("financeMonth").value;
+      const active=orders.filter(o=>String(o.created_at||"").slice(0,7)===month);
+      const valid=active.filter(o=>o.status!=="Cancelado"&&o.payment_status!=="Reembolsado");
+      const sum=a=>a.reduce((n,o)=>n+Number(o.total_amount||0),0);
+      const paid=valid.filter(o=>o.payment_status==="Pago");
+      const awaiting=valid.filter(o=>o.payment_status==="Aguardando");
+      const partial=valid.filter(o=>o.payment_status==="Parcial");
+      const excluded=active.filter(o=>o.status==="Cancelado"||o.payment_status==="Reembolsado");
+      const cards=[
+        ["Pedidos no mês",String(active.length)],
+        ["Valor dos pedidos válidos",money(sum(valid))],
+        ["Marcados como pagos",money(sum(paid))],
+        ["Aguardando pagamento",money(sum(awaiting))],
+        ["Pagamento parcial (valor total)",money(sum(partial))],
+        ["Cancelados/reembolsados",money(sum(excluded))]
+      ];
+      const root=$("financeStats");root.replaceChildren();
+      cards.forEach(([label,value])=>{const card=elt("div",undefined,"stat");card.append(elt("span",label),elt("b",value));card.querySelector("b").style.fontSize="clamp(17px,2.5vw,25px)";root.append(card)});
+      const summary=$("financeBreakdown");summary.replaceChildren();
+      summary.append(elt("p","Pedidos pagos: "+paid.length+" · Aguardando: "+awaiting.length+" · Parciais: "+partial.length+" · Excluídos dos totais: "+excluded.length,"muted"));
+      $("financeNote").textContent="Competência por data do pedido, não pela data do pagamento. Valores recebidos consideram apenas pedidos marcados como Pago e não cancelados. Pagamentos parciais mostram o valor total do pedido, não o valor já recebido. Este resumo não calcula lucro nem despesas.";
+    }
+    $("financeMonth").value=localDate().slice(0,7);
+    $("financeMonth").onchange=renderFinance;
     function renderOrders(){
       const stats=$("orderStats");stats.replaceChildren();
       [["Todos",orders.length],...statuses.map(x=>[x,orders.filter(o=>o.status===x).length])].forEach(([label,count])=>{
@@ -304,7 +337,7 @@
     async function loadOrders(){
       notice("");const {data,error}=await db.from("enf_orders").select("*").order("created_at",{ascending:false}).limit(500);
       if(error){$("ordersList").replaceChildren(elt("p","A base de pedidos ainda precisa ser ativada no Supabase. Execute o SQL de configuração para começar.","muted"));notice("Configuração do banco de pedidos pendente.");return;}
-      orders=data||[];renderOrders();
+      orders=data||[];renderOrders();renderFinance();
     }
     async function deleteOrder(order){
       const code="#ENF-"+String(order.id).padStart(4,"0");
@@ -321,7 +354,7 @@
       const {error}=await db.from("enf_orders").update(patch).eq("id",id);
       control.disabled=false;
       if(error){notice("Não foi possível atualizar: "+error.message);await loadOrders();return;}
-      const o=orders.find(x=>x.id===id);if(o)Object.assign(o,patch);notice("Pedido atualizado com sucesso.");renderOrders();
+      const o=orders.find(x=>x.id===id);if(o)Object.assign(o,patch);notice("Pedido atualizado com sucesso.");renderOrders();renderFinance();
     }
     function openForm(order=null){
       editingId=order?.id||null;$("orderForm").reset();$("formTitle").textContent=order?"Editar pedido #ENF-"+String(order.id).padStart(4,"0"):"Cadastrar pedido";
