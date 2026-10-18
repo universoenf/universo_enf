@@ -1,1 +1,64 @@
-(()=>{const cards=[["Coração","CARDIOVASCULAR.png","Sistema Cardiovascular"],["Sistema Nervoso","NERVOSO.png","Sistema Nervoso"],["Sistema Respiratório","RESPIRATORIO.png","Sistema Respiratório"],["Sistema Digestivo","DIGESTIVO.png","Sistema Digestivo"],["Sistema Urinário","URINARIO.png","Sistema Urinário"],["Sistema Ósseo","file_00000000829c820e81593db25b950ec2.png","Sistema Esquelético"]];const root=document.getElementById("showcase");if(!root)return;cards.forEach(([name,img,group])=>{const el=document.createElement("article");el.className="showcase-card";const image=document.createElement("img");image.src=encodeURI(img);image.alt="Coleção "+name;image.loading="lazy";image.onerror=()=>{image.style.display="none"};const title=document.createElement("strong");title.textContent=name;const subtitle=document.createElement("small");subtitle.textContent="Conheça os cards disponíveis";const btn=document.createElement("button");btn.textContent="🛒 Ver cards da coleção";btn.onclick=()=>{const search=document.getElementById("search");search.value="";search.dispatchEvent(new Event("input"));const target=document.getElementById("cat-anatomia");if(target){target.open=true;target.scrollIntoView({behavior:"smooth"});setTimeout(()=>{const groups=[...target.querySelectorAll(".gt")];const g=groups.find(e=>e.textContent.includes(group));if(g)g.scrollIntoView({behavior:"smooth",block:"center"})},250)}};el.append(image,title,subtitle,btn);root.append(el)})})();
+(()=>{
+const root=document.getElementById("showcase");
+const panel=document.getElementById("catalog-view");
+const catalog=document.getElementById("catalog");
+if(!root||!panel||!catalog||typeof D==="undefined")return;
+const anatomyImages={
+"Sistema Esquelético":"file_00000000829c820e81593db25b950ec2.png",
+"Sistema Articular":"ARTICULAR.png","Sistema Cardiovascular":"CARDIOVASCULAR.png",
+"Sistema Digestivo":"DIGESTIVO.png","Sistema Endócrino":"ENDOCRINO.png",
+"Sistema Linfático":"LINFATICO.png","Sistema Muscular":"MUSCULAR.png",
+"Sistema Nervoso":"NERVOSO.png","Sistema Genital":"GENITAL.png",
+"Sistema Respiratório":"RESPIRATORIO.png","Sistema Tegumentar":"TEGUMENTAR.png",
+"Sistema Urinário":"URINARIO.png"};
+const categoryImages={
+"CIRÚRGICA":"CIRURGICAS.png","DISPOSITIVOS":"DISPOSITIVOS.png",
+"ESCALAS DE ENFERMAGEM":"ESCALAS.png","FERIDAS E CURATIVOS":"FERIDAS.png",
+"SAÚDE DA CRIANÇA":"CRIANÇA.png","SAÚDE DA MULHER":"MULHER.png",
+"SAÚDE DO IDOSO":"IDOSO.png","URGÊNCIA E EMERGÊNCIA":"URGENCIAEMERGENCIA.png",
+"SEMIOLOGIA":"SEMIOLOGIA.png","SEMIOTÉCNICA":"SEMIOTECNICA.png",
+"EXAMES LABORATORIAIS":"EXAMES.png"};
+const icons={"ANATOMIA":"🫀","CIRÚRGICA":"🩺","FARMACOLOGIA":"💊","SAÚDE DO HOMEM":"💙","SAÚDE DO ADOLESCENTE":"🌷","RELATÓRIOS":"📋","TERMINOLOGIAS":"📖","ISTs":"🧬","VACINAÇÃO":"💉","TEORIAS DA ENFERMAGEM":"📚","DISPOSITIVOS":"🩹"};
+const idFor=c=>"cat-"+c.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-zA-Z0-9]+/g,"-").toLowerCase();
+function openCollection(category,group){
+ const search=document.getElementById("search");
+ if(search){search.value="";search.dispatchEvent(new Event("input"))}
+ panel.hidden=false;
+ const details=document.getElementById(idFor(category));
+ if(details?.tagName==="DETAILS")details.open=true;
+ panel.scrollIntoView({behavior:"smooth",block:"start"});
+ if(group&&details)setTimeout(()=>{
+ const match=[...details.querySelectorAll(".gt")].find(el=>el.textContent.trim().includes(group));
+ if(match)match.scrollIntoView({behavior:"smooth",block:"start"});
+ },250);
+}
+document.getElementById("back-collections")?.addEventListener("click",()=>{
+ panel.hidden=true;document.getElementById("categorias").scrollIntoView({behavior:"smooth"});
+});
+const collections=[
+ ...Object.keys(D.ANATOMIA||{}).map(group=>({title:group,category:"ANATOMIA",group,image:anatomyImages[group],icon:"🫀"})),
+ ...Object.keys(D).filter(c=>c!=="ANATOMIA").map(category=>({
+ title:category==="CIRÚRGICA"?"Enfermagem Cirúrgica":category,
+ category,image:categoryImages[category],icon:icons[category]||"💜",
+ coming:D[category]===null||["RELATÓRIOS","TERMINOLOGIAS"].includes(category)
+ }))
+];
+collections.forEach(item=>{
+ const card=document.createElement("article");card.className="showcase-card";
+ const art=document.createElement("div");
+ if(item.image){
+ const img=document.createElement("img");img.src=encodeURI(item.image);img.alt="Imagem ilustrativa da coleção "+item.title;img.loading="lazy";
+ img.onerror=()=>{img.remove();const fallback=document.createElement("div");fallback.className="promo-placeholder";fallback.textContent=item.icon;art.append(fallback)};
+ art.append(img);
+ }else{
+ const fallback=document.createElement("div");fallback.className="promo-placeholder";fallback.textContent=item.icon;art.append(fallback);
+ }
+ const name=document.createElement("strong");name.textContent=item.title;
+ const sub=document.createElement("small");sub.textContent=item.coming?"Em produção • novidades em breve":"Conheça os cards disponíveis";
+ const button=document.createElement("button");button.type="button";button.textContent=item.coming?"💜 Ver coleção em produção":"🛒 Ver cards da coleção";
+ button.onclick=()=>openCollection(item.category,item.group);
+ card.append(art,name,sub,button);root.append(card);
+});
+const search=document.getElementById("search");
+search?.addEventListener("input",()=>{if(search.value.trim())panel.hidden=false});
+})();
