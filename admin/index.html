@@ -320,6 +320,7 @@
       summary.append(elt("p","Pedidos pagos: "+paid.length+" · Aguardando: "+awaiting.length+" · Parciais: "+partial.length+" · Excluídos dos totais: "+excluded.length,"muted"));
       $("financeNote").textContent="Resultado estimado = recebimentos informados em pedidos criados neste mês menos despesas datadas neste mês. Não é lucro contábil nem fluxo de caixa por data de pagamento.";
       renderFinanceChart();
+      renderExpenses();
     }
     let starsCustomers = [], starsMovements = [];
     async function loadStars(){
