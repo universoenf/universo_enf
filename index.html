@@ -47,6 +47,26 @@ header{background:linear-gradient(90deg,rgba(255,247,253,.72),rgba(255,255,255,.
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase-config.js";
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 const orderDB=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+// Integração v2 preparada. Ativar somente após cadastrar TODOS os conjuntos no Supabase.
+window.ENF_CHECKOUT_V2_ENABLED = false;
+window.universoRegistrarPedidoV2 = async function(p){
+  const key="enf_checkout_v2_"+JSON.stringify([p.customer_name,p.customer_phone,p.items,p.product_code,p.quantity,p.first_purchase_requested,p.notes]);
+  let requestId=sessionStorage.getItem(key);
+  if(!requestId){requestId=crypto.randomUUID();sessionStorage.setItem(key,requestId);}
+  try{
+    const {data,error}=await orderDB.rpc("enf_register_store_order_v2",{
+      p_request_id:requestId,p_customer_name:p.customer_name||"Cliente pelo site",
+      p_customer_phone:p.customer_phone||"",p_items:p.items,
+      p_product_code:p.product_code,p_quantity:p.quantity,
+      p_first_purchase_requested:!!p.first_purchase_requested,p_notes:p.notes||""
+    });
+    if(error)throw error;
+    const id=Number(data?.order_id);
+    if(!Number.isSafeInteger(id)||id<=0)throw new Error("Banco não confirmou número do pedido");
+    sessionStorage.removeItem(key);
+    return {order_id:id,total_amount:Number(data.total_amount),discount_pending:!!data.discount_pending};
+  }catch(e){console.error("Falha no checkout v2:",e);throw e;}
+};
 window.universoRegistrarPedido=async function(p){
   const key="enf_checkout_"+JSON.stringify([p.customer_name,p.customer_phone,p.items,p.quantity,p.total_amount,p.notes]);
   let requestId=sessionStorage.getItem(key);
