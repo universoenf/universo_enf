@@ -102,6 +102,7 @@ window.universoRegistrarPedido=async function(p){
  let group='inicio';
  for(const el of sections){
   if(el.id==='universo-stars')group='conta';
+  else if(group==='conta' && !el.id && el.classList.contains('box'))group='inicio';
   else if(el.id==='shop')group='inicio';
   else if(el.id==='carrinho')group='carrinho';
   else if(el.id==='categorias')group='categorias';
