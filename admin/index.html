@@ -166,7 +166,7 @@
         <p id="starsNotice" class="feedback" role="status"></p>
         <label>Buscar cliente por nome ou WhatsApp<input id="starsSearch" placeholder="Digite para localizar"></label>
         <div id="starsCustomers"><p class="muted">Carregando clientes...</p></div>
-        <p class="muted">Os créditos automáticos e os resgates serão ativados na próxima etapa de configuração. Nenhuma estrela será concedida antes dessa integração.</p>
+        <p class="muted">Estrelas são creditadas após confirmação de pagamento. Resgates de 10 estrelas devem ser confirmados antes da entrega da recompensa.</p>
       </section>
 
       <section class="panel" id="ordersModule">
@@ -325,7 +325,7 @@
     async function loadStars(){
       const [c,m]=await Promise.all([
         db.from("enf_stars_customers").select("id,customer_name,whatsapp").order("customer_name",{ascending:true}).limit(1000),
-        db.from("enf_stars_movements").select("customer_id,stars,movement_type").limit(5000)
+        db.from("enf_stars_movements").select("id,customer_id,order_id,stars,movement_type,reward_type,notes,created_at").order("created_at",{ascending:false}).limit(5000)
       ]);
       if(c.error||m.error){
         $("starsNotice").textContent="Não foi possível carregar o Universo Stars. Verifique a configuração no Supabase.";
@@ -343,11 +343,37 @@
       }
       const q=$("starsSearch").value.toLocaleLowerCase("pt-BR"),list=$("starsCustomers");list.replaceChildren();
       const shown=starsCustomers.filter(c=>(c.customer_name+" "+c.whatsapp).toLocaleLowerCase("pt-BR").includes(q));
-      if(!shown.length){list.append(elt("p",starsCustomers.length?"Nenhum cliente encontrado.":"Nenhum cliente cadastrado ainda. Os créditos serão habilitados na próxima etapa.","muted"));return;}
+      if(!shown.length){list.append(elt("p",starsCustomers.length?"Nenhum cliente encontrado.":"Nenhum cliente com estrelas cadastrado ainda. Os créditos surgirão após a confirmação de pagamentos elegíveis.","muted"));return;}
       for(const c of shown){
         const balance=balances.get(c.id)||0,card=elt("div",undefined,"order"),head=elt("div",undefined,"orderhead");
         head.append(elt("strong",c.customer_name),elt("strong",balance+" ⭐"));card.append(head,elt("p","WhatsApp: "+c.whatsapp,"muted"));
         card.append(elt("p",balance>=10?"🎁 Recompensa disponível":"Faltam "+(10-balance)+" estrela(s) para a próxima recompensa.","muted"));
+        if(balance>=10){
+          const controls=elt("div",undefined,"ordercontrols");
+          for(const [type,label] of [["4_cards","🎁 Resgatar 4 cards"],["desconto_10","🏷️ Resgatar R$ 10 de desconto"]]){
+            const btn=elt("button",label,"secondary");btn.type="button";
+            btn.onclick=async()=>{
+              if(!confirm("Confirmar resgate de 10 estrelas para "+c.customer_name+"?\\nRecompensa: "+label+"\\nEsta operação será registrada no histórico."))return;
+              btn.disabled=true;
+              const {error}=await db.rpc("enf_redeem_stars",{p_customer_id:c.id,p_reward_type:type});
+              if(error){$("starsNotice").textContent="Não foi possível resgatar: "+error.message;btn.disabled=false;return;}
+              await loadStars();$("starsNotice").textContent="Recompensa registrada! Confirme a entrega dos cards ou a aplicação do desconto no pedido.";
+            };
+            controls.append(btn);
+          }
+          card.append(controls);
+        }
+        const history=starsMovements.filter(m=>m.customer_id===c.id).slice(0,12);
+        if(history.length){
+          const details=elt("details"),summary=elt("summary","Ver histórico de estrelas");details.append(summary);
+          for(const m of history){
+            const label=m.movement_type==="credito"?"Crédito":m.movement_type==="estorno"?"Estorno":"Resgate";
+            const reward=m.reward_type==="4_cards"?" · 4 cards":m.reward_type==="desconto_10"?" · R$ 10 de desconto":"";
+            const date=m.created_at?new Date(m.created_at).toLocaleDateString("pt-BR"):"";
+            details.append(elt("p",date+" · "+label+reward+" · "+(m.stars>0?"+":"")+m.stars+" ⭐"+(m.order_id?" · Pedido #"+m.order_id:""),"muted"));
+          }
+          card.append(details);
+        }
         list.append(card);
       }
     }
