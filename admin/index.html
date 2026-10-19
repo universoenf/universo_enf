@@ -385,6 +385,7 @@
       else {expenses=data||[];$("expenseNotice").textContent="";}
       renderFinance();
     }
+    let editingExpenseId=null;
     function renderExpenses(){
       const list=$("expensesList");list.replaceChildren();
       if(!expensesReady){list.append(elt("p","Cadastro de despesas aguardando ativação no banco de dados.","muted"));return;}
@@ -394,6 +395,8 @@
         const card=elt("div",undefined,"order"),head=elt("div",undefined,"orderhead");
         head.append(elt("strong",e.description),elt("strong",money(e.amount)));
         card.append(head,elt("p",e.category+" · "+fmtDate(e.expense_date),"muted"));
+        const edit=elt("button","Editar","secondary");edit.type="button";edit.style.marginTop="8px";edit.style.marginRight="8px";
+        edit.onclick=()=>{editingExpenseId=e.id;const form=$("expenseForm");form.reset();for(const key of ["description","category","amount","expense_date"])form.elements.namedItem(key).value=e[key];$("saveExpense").textContent="Salvar alterações";form.hidden=false;form.scrollIntoView({behavior:"smooth",block:"start"});};
         const del=elt("button","Excluir despesa","secondary");del.type="button";del.style.marginTop="8px";
         del.onclick=async()=>{
           if(!confirm("Excluir a despesa "+e.description+" de "+money(e.amount)+"? Esta ação é permanente."))return;
@@ -402,20 +405,21 @@
           if(error){$("expenseNotice").textContent="Erro ao excluir: "+error.message;del.disabled=false;return;}
           await loadExpenses();$("expenseNotice").textContent="Despesa excluída.";
         };
-        card.append(del);list.append(card);
+        card.append(edit,del);list.append(card);
       });
     }
-    $("addExpense").onclick=()=>{$("expenseForm").reset();$("expenseForm").elements.namedItem("expense_date").value=localDate();$("expenseForm").hidden=false;};
-    $("cancelExpense").onclick=()=>{$("expenseForm").hidden=true;};
+    $("addExpense").onclick=()=>{editingExpenseId=null;$("saveExpense").textContent="Salvar despesa";$("expenseForm").reset();$("expenseForm").elements.namedItem("expense_date").value=localDate();$("expenseForm").hidden=false;};
+    $("cancelExpense").onclick=()=>{$("expenseForm").hidden=true;editingExpenseId=null;};
     $("expenseForm").onsubmit=async e=>{
       e.preventDefault();const f=new FormData(e.currentTarget);
       const amount=Number(f.get("amount"));
       if(!Number.isFinite(amount)||amount<=0||amount>1000000)return;
       const btn=$("saveExpense");btn.disabled=true;
-      const {error}=await db.from("enf_expenses").insert({description:String(f.get("description")).trim(),category:String(f.get("category")),amount,expense_date:String(f.get("expense_date"))});
+      const payload={description:String(f.get("description")).trim(),category:String(f.get("category")),amount,expense_date:String(f.get("expense_date"))};
+      const {error}=editingExpenseId===null?await db.from("enf_expenses").insert(payload):await db.from("enf_expenses").update(payload).eq("id",editingExpenseId);
       btn.disabled=false;
       if(error){$("expenseNotice").textContent="Não foi possível salvar: "+error.message;return;}
-      $("expenseForm").hidden=true;await loadExpenses();$("expenseNotice").textContent="Despesa registrada com sucesso!";
+      $("expenseForm").hidden=true;editingExpenseId=null;await loadExpenses();$("expenseNotice").textContent="Despesa salva com sucesso!";
     };
     function monthSummary(month){
       const valid=orders.filter(o=>String(o.created_at||"").slice(0,7)===month&&o.status!=="Cancelado"&&o.payment_status!=="Reembolsado");
