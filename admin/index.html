@@ -549,6 +549,9 @@
       if(!confirm("Excluir permanentemente o pedido "+code+" de "+order.customer_name+"?\n\nEsta ação não pode ser desfeita."))return;
       const typed=prompt("Para confirmar, digite o número "+code+" exatamente:");
       if(typed!==code){if(typed!==null)notice("Exclusão cancelada: número não confere.");return;}
+      const {data:movements,error:starsError}=await db.from("enf_stars_movements").select("id,stars,movement_type").eq("order_id",order.id);
+      if(starsError){notice("Não foi possível verificar as estrelas deste pedido. Exclusão bloqueada por segurança.");return;}
+      if((movements||[]).length){notice("Este pedido possui histórico no Universo Stars. Para preservar o saldo do cliente, a exclusão foi bloqueada. Cancele ou reembolse o pedido e confira a reversão das estrelas antes de solicitar uma exclusão definitiva.");return;}
       const {error}=await db.from("enf_orders").delete().eq("id",order.id);
       if(error){notice("Não foi possível excluir: "+error.message);return;}
       await loadOrders();notice("Pedido "+code+" excluído com sucesso.");
