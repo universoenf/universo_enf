@@ -32,7 +32,7 @@ $("buywa").onclick=async()=>{
  const customerName=document.getElementById("name")?.value?.trim()||"Cliente pelo site";
  const customerPhone=document.getElementById("phone")?.value?.trim()||"";
  const phoneDigits=customerPhone.replace(/\D/g,"");
- if(phoneDigits.length!==10&&phoneDigits.length!==11&&!(phoneDigits.length===12||phoneDigits.length===13)&&phoneDigits.startsWith("55")){alert("Informe um WhatsApp válido com DDD para registrar o pedido e receber estrelas.");document.getElementById("phone")?.focus();return;}
+ if(!(phoneDigits.length===10||phoneDigits.length===11||((phoneDigits.length===12||phoneDigits.length===13)&&phoneDigits.startsWith("55")))){alert("Informe um WhatsApp válido com DDD para registrar o pedido e receber estrelas.");document.getElementById("phone")?.focus();return;}
  const items=[x.label,...lines].join("\n");
  let orderId;
  try { if(typeof window.universoRegistrarPedido!=="function") throw new Error("Integração não carregada"); orderId=await window.universoRegistrarPedido({customer_name:customerName,customer_phone:customerPhone,items,quantity:x.count,total_amount:x.amount,notes:[note,mode==="kit"?"Kit: conteúdos a confirmar":""].filter(Boolean).join(" · ")}); } catch(e) { alert("Não foi possível registrar seu pedido no sistema. Tente atualizar a página ou entre em contato pelo WhatsApp."); return; }
