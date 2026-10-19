@@ -97,14 +97,18 @@
     body{background:#faf7ff url("../file_000000001b68820e822f1ece61f41360.png") center top / cover fixed no-repeat}
     header{background:linear-gradient(90deg,#ffffffdd,#ffffffc9),url("../file_000000001b68820e822f1ece61f41360.png") center center / cover no-repeat;color:#62359a;border-bottom:1px solid #e9dafa;min-height:175px;display:flex;align-items:center;justify-content:center}
     header h1{color:#62359a;text-shadow:0 2px 8px white}
+    header{flex-direction:column;gap:0;padding:28px 18px;min-height:195px}
+    .admin-brand{display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center;max-width:720px;padding:17px 28px;border-radius:22px;background:#ffffffd9;box-shadow:0 8px 28px #7854b01a}
+    .admin-brand-mark{font-size:13px;font-weight:900;letter-spacing:.13em;color:#8b45bb}
+    header .admin-brand h1{font-size:clamp(26px,3.5vw,42px);line-height:1.16;margin:0;color:#6034a0}
+    header .admin-brand p{margin:0;font-size:clamp(13px,1.5vw,16px);line-height:1.5;color:#6b5c7f}
     .panel,.card{background:#fffffff2;backdrop-filter:blur(5px)}
-    @media(max-width:650px){body{background-attachment:scroll;background-size:auto 100vh}header{min-height:145px;padding:24px 12px;background-position:center top}}
+    @media(max-width:650px){body{background-attachment:scroll;background-size:auto 100vh}header{min-height:165px;padding:16px 12px;background-position:center top}.admin-brand{padding:15px 18px}}
   </style>
 </head>
 <body>
   <header>
-    <h1>💜 Universo ENF | Gestão</h1>
-    <p>Central administrativa</p>
+    <div class="admin-brand"><div class="admin-brand-mark">💜 UNIVERSO ENF</div><h1>Painel Administrativo</h1><p>Organize sua loja, acompanhe seus pedidos e gerencie suas conquistas.</p></div>
   </header>
 
   <main>
