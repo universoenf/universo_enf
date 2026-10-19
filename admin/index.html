@@ -76,7 +76,7 @@
     .quick-nav{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 16px}
     .quick-nav a{display:inline-flex;align-items:center;justify-content:center;flex:1 1 150px;padding:13px 16px;border-radius:12px;background:#f1e9fc;color:#60418f;text-decoration:none;font-weight:700;border:1px solid #e6d5f7}
     .quick-nav a:hover,.quick-nav a:focus-visible{background:#e8d8fc;outline:2px solid #7550b6;outline-offset:2px}
-    #financeModule,#ordersModule,#starsModule{scroll-margin-top:18px}
+    #financeModule,#expensesModule,#ordersModule,#starsModule{scroll-margin-top:18px}
     
     .status-tag{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;border:1px solid transparent}
     .tag-yellow{background:#fff4d6;color:#825800;border-color:#f6df99}
@@ -133,18 +133,13 @@
       <nav class="panel quick-nav" aria-label="Acesso rápido às categorias">
         <a href="#ordersModule">🛍️ Pedidos</a>
         <a href="#financeModule">💰 Financeiro</a>
+        <a href="#expensesModule">🧾 Despesas</a>
         <a href="#starsModule">⭐ Universo Stars</a>
       </nav>
 
-      <section class="panel" id="financeModule">
-        <div class="toolbar"><div><h2>💰 Financeiro</h2><p class="muted">Resumo baseado nos pedidos cadastrados e nos pagamentos confirmados manualmente.</p></div>
-          <label style="min-width:185px">Mês dos pedidos<input id="financeMonth" type="month"></label></div>
-        <div class="stats" id="financeStats"></div>
-        <p class="muted" id="financeNote">Os valores são estimativas conforme o status informado no painel. Pagamentos parciais não são contabilizados como recebidos até a confirmação integral.</p>
-        <div id="financeBreakdown"></div>
-        <div class="toolbar" style="margin-top:18px"><h3 style="margin:0">📊 Evolução financeira</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="exportFinance" type="button" class="secondary">📗 Exportar Excel (CSV)</button><button id="printFinance" type="button" class="secondary">📄 Salvar PDF</button></div></div>
-        <p class="muted">Comparativo dos últimos 6 meses. O PDF usa a opção Imprimir / Salvar como PDF do navegador.</p>
-        <div id="financeChart" style="overflow-x:auto"></div>
+      <section class="panel" id="expensesModule">
+        <h2>🧾 Despesas</h2>
+        <p class="muted">Os lançamentos seguem o mês selecionado no Financeiro.</p>
         <div class="toolbar" style="margin-top:20px"><h3 style="margin:0">🧾 Despesas do mês</h3><button type="button" id="addExpense">+ Nova despesa</button></div>
         <p id="expenseNotice" class="feedback" role="status"></p>
         <form id="expenseForm" class="panel" hidden>
@@ -157,6 +152,18 @@
           <div class="toolbar" style="justify-content:flex-start;margin-top:12px"><button type="submit" id="saveExpense">Salvar despesa</button><button type="button" class="secondary" id="cancelExpense">Cancelar</button></div>
         </form>
         <div id="expensesList"></div>
+      </section>
+
+      <section class="panel" id="financeModule">
+        <div class="toolbar"><div><h2>💰 Financeiro</h2><p class="muted">Resumo baseado nos pedidos cadastrados e nos pagamentos confirmados manualmente.</p></div>
+          <label style="min-width:185px">Mês dos pedidos<input id="financeMonth" type="month"></label></div>
+        <div class="stats" id="financeStats"></div>
+        <p class="muted" id="financeNote">Os valores são estimativas conforme o status informado no painel. Pagamentos parciais não são contabilizados como recebidos até a confirmação integral.</p>
+        <div id="financeBreakdown"></div>
+        <div class="toolbar" style="margin-top:18px"><h3 style="margin:0">📊 Evolução financeira</h3><div style="display:flex;gap:8px;flex-wrap:wrap"><button id="exportFinance" type="button" class="secondary">📗 Exportar Excel (CSV)</button><button id="printFinance" type="button" class="secondary">📄 Salvar PDF</button></div></div>
+        <p class="muted">Comparativo dos últimos 6 meses. O PDF usa a opção Imprimir / Salvar como PDF do navegador.</p>
+        <div id="financeChart" style="overflow-x:auto"></div>
+
       </section>
 
       <section class="panel" id="starsModule">
