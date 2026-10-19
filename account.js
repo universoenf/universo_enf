@@ -14,6 +14,7 @@ if(!SUPABASE_URL||!SUPABASE_ANON_KEY){
       const {data:{user}}=await db.auth.getUser();
       show("auth-forms",!user);
       show("auth-account",!!user);
+      show("universo-stars",!!user);
       show("admin-entry",false);
       if(!user){say("Entre ou crie sua conta.");return}
       say("Conta conectada com segurança.");
