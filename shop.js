@@ -31,6 +31,8 @@ $("buywa").onclick=async()=>{
  let lines=mode==="avulso"?(x.selected||[]).map(i=>"• "+i.cat+" / "+i.name+" ("+i.qty+" card"+(i.qty>1?"s":"")+")"):[];let msg=["💜 *PEDIDO UNIVERSO ENF*","*Modalidade:* "+({avulso:"Cards avulsos",conjunto:"Conjunto completo",kit:"Kit personalizado"}[mode]),"*Seleção:* "+x.label,...(lines.length?["*Cards escolhidos:*",...lines]:[]),"*Quantidade:* "+x.count+" cards","*Valor estimado:* "+money(x.amount),note,mode==="kit"?"Gostaria de informar os conteúdos desejados.":"","Por favor, confirme disponibilidade, preço e condições do pedido."].filter(Boolean).join("\n");
  const customerName=document.getElementById("name")?.value?.trim()||"Cliente pelo site";
  const customerPhone=document.getElementById("phone")?.value?.trim()||"";
+ const phoneDigits=customerPhone.replace(/\D/g,"");
+ if(phoneDigits.length!==10&&phoneDigits.length!==11&&!(phoneDigits.length===12||phoneDigits.length===13)&&phoneDigits.startsWith("55")){alert("Informe um WhatsApp válido com DDD para registrar o pedido e receber estrelas.");document.getElementById("phone")?.focus();return;}
  const items=[x.label,...lines].join("\n");
  let orderId;
  try { if(typeof window.universoRegistrarPedido!=="function") throw new Error("Integração não carregada"); orderId=await window.universoRegistrarPedido({customer_name:customerName,customer_phone:customerPhone,items,quantity:x.count,total_amount:x.amount,notes:[note,mode==="kit"?"Kit: conteúdos a confirmar":""].filter(Boolean).join(" · ")}); } catch(e) { alert("Não foi possível registrar seu pedido no sistema. Tente atualizar a página ou entre em contato pelo WhatsApp."); return; }
