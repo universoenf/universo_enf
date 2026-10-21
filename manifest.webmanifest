@@ -1,0 +1,26 @@
+{
+  "id": "/universo_enf/",
+  "name": "Universo ENF",
+  "short_name": "Universo ENF",
+  "description": "Um universo de conhecimento para a Enfermagem",
+  "lang": "pt-BR",
+  "start_url": "/universo_enf/",
+  "scope": "/universo_enf/",
+  "display": "standalone",
+  "background_color": "#faf9fc",
+  "theme_color": "#7253a6",
+  "icons": [
+    {
+      "src": "./icon-192.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
