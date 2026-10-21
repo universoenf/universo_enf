@@ -124,7 +124,7 @@
         <input id="password" type="password" placeholder="Senha" required>
         <button type="submit">Entrar</button>
       </form>
-      <p id="message"></p>
+      <p><button type="button" id="recoverLink">Esqueci minha senha</button></p><p id="message"></p>
     </section>
 
     <section id="denied" class="panel" hidden>
@@ -241,6 +241,12 @@
       );
     }
 
+    $("recoverLink").onclick = async () => {
+      const email = $("email").value.trim();
+      if (!email) { $("message").textContent = "Digite seu e-mail antes de solicitar o link."; return; }
+      const { error } = await db.auth.resetPasswordForEmail(email, { redirectTo: new URL("./redefinir-senha.html", location.href).href });
+      $("message").textContent = error ? "Não foi possível enviar o link. Tente novamente." : "Se o e-mail estiver cadastrado, você receberá um link. Confira também o spam.";
+    };
     async function checkAccess() {
       try {
         const { data: { user } } = await db.auth.getUser();
